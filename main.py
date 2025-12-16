@@ -1598,7 +1598,7 @@ Aún no se ha realizado ninguna acción en el bot.
                     warning_msg = bot.sendMessage(update.message.chat.id, 
                                       f"⚠️ {funny_message}\n\n"
                                       f"📊 Cojone, dale suave q esto no es una nube artificial, para qué tu quieres subir {file_size_mb:.2f} MB?\n\n"
-                                      f"⬇️ Bueno igual lo voy a subir, te pones de pinga😡")
+                                      f"⬇️ Bueno igual lo voy a subir😡")
                     funny_message_sent = warning_msg
                 
             except Exception as e:
@@ -1629,4 +1629,5 @@ if __name__ == '__main__':
         main()
     except:
         main()
+
 
