@@ -4,10 +4,11 @@ python-telegram-bot
 bs4
 user_agent
 ping3
-nmap
+python-nmap
 tcping
 pyping
 youtube_dl
 requests_toolbelt
 telethon
 tenacity
+pytz
