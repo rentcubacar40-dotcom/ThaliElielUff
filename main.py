@@ -48,7 +48,7 @@ PRE_CONFIGURATED_USERS = {
         "proxy": "",
         "tokenize": 0
     },
-    "Emanuel14APK,gatitoo_miauu,maykolguille": {
+    "Emanuel14APK,gatitoo_miauu,maykolguille,yordante": {
         "cloudtype": "moodle",
         "moodle_host": "https://cursos.uo.edu.cu/",
         "moodle_repo_id": 4,
@@ -1043,3 +1043,4 @@ if __name__ == '__main__':
         main()
     except:
         main()
+
