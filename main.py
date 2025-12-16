@@ -1593,13 +1593,12 @@ Aún no se ha realizado ninguna acción en el bot.
                 file_size_mb = file_size / (1024 * 1024)
                 
                 # Si es mayor a 200MB, mostrar mensaje chistoso
-                if file_size_mb > 200:
+                if file_size_mb > 500:
                     funny_message = get_random_large_file_message()
                     warning_msg = bot.sendMessage(update.message.chat.id, 
                                       f"⚠️ {funny_message}\n\n"
-                                      f"📊 Tamaño detectado: {file_size_mb:.2f} MB\n"
-                                      f"📁 Límite: 200 MB\n\n"
-                                      f"⬇️ Iniciando descarga igualmente...")
+                                      f"📊 Cojone, dale suave q esto no es una nube artificial, para qué tu quieres subir {file_size_mb:.2f} MB?\n\n"
+                                      f"⬇️ Bueno igual lo voy a subir, te pones de pinga😡")
                     funny_message_sent = warning_msg
                 
             except Exception as e:
@@ -1630,3 +1629,4 @@ if __name__ == '__main__':
         main()
     except:
         main()
+
