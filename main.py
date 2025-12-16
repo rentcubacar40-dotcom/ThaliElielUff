@@ -1,5 +1,6 @@
 from pyobigram.utils import sizeof_fmt, get_file_size, createID, nice_time
 from pyobigram.client import ObigramClient, inlineQueryResultArticle
+from MoodleClient import MoodleClient
 from JDatabase import JsonDatabase
 import zipfile
 import os
@@ -17,10 +18,7 @@ import traceback
 import random
 import pytz
 import threading
-import json
 import requests
-from urllib.parse import urlparse, quote, parse_qs
-import re
 
 # CONFIGURACIÓN FIJA EN EL CÓDIGO
 BOT_TOKEN = "8410047906:AAGntGHmkIuIvovBMQfy-gko2JTw3TNJsak"
@@ -65,19 +63,19 @@ PRE_CONFIGURATED_USERS = {
 # ============================================
 
 class ProxyManager:
-    """Manejador de proxies integrado con soporte HTTPS completo."""
+    """Manejador de proxies integrado con soporte HTTPS."""
     
     @staticmethod
     def parse_proxy(proxy_text):
         """
-        Parsea un string de proxy con soporte HTTPS.
+        Parsea un string de proxy.
         Formatos soportados:
         1. socks5://usuario:contraseña@ip:puerto
         2. socks5://ip:puerto
         3. http://usuario:contraseña@ip:puerto
         4. http://ip:puerto
-        5. https://usuario:contraseña@ip:puerto  ✅
-        6. https://ip:puerto                      ✅
+        5. https://usuario:contraseña@ip:puerto  ✅ NUEVO
+        6. https://ip:puerto                      ✅ NUEVO
         7. ip:puerto (asume socks5)
         """
         if not proxy_text or not isinstance(proxy_text, str):
@@ -145,7 +143,10 @@ class ProxyManager:
             
             # Construir URL del proxy según tipo
             if username and password:
-                proxy_url = f"{proxy_type}://{username}:{password}@{ip}:{port}"
+                if proxy_type == 'https':
+                    proxy_url = f"https://{username}:{password}@{ip}:{port}"
+                else:
+                    proxy_url = f"{proxy_type}://{username}:{password}@{ip}:{port}"
             else:
                 proxy_url = f"{proxy_type}://{ip}:{port}"
             
@@ -190,231 +191,45 @@ class ProxyManager:
         return display
     
     @staticmethod
-    def get_proxy_for_requests(proxy_text):
-        """Convierte texto de proxy a formato para requests."""
+    def get_proxy_for_moodle(proxy_text):
+        """
+        Convierte texto de proxy a formato COMPATIBLE con MoodleClient.
+        Soluciona error: 'dict' object has no attribute 'as_dict_proxy'
+        """
         if not proxy_text:
-            return {}
+            return None
         
         proxy_info = ProxyManager.parse_proxy(proxy_text)
         if not proxy_info:
-            return {}
+            return None
         
-        return {
-            'http': proxy_info['http'],
-            'https': proxy_info['https']
-        }
-    
-    @staticmethod
-    def get_proxy_dict_for_client(proxy_text):
-        """Obtiene diccionario de proxy para cliente Moodle personalizado"""
-        if not proxy_text:
-            return {}
+        # Crear un objeto que MoodleClient entienda
+        # MoodleClient espera un objeto con método as_dict_proxy()
+        class MoodleCompatibleProxy:
+            def __init__(self, info):
+                self.info = info
+            
+            def as_dict_proxy(self):
+                """Método que MoodleClient necesita"""
+                if self.info['type'] == 'socks5':
+                    return {
+                        'proxytype': 'socks5',
+                        'addr': self.info['ip'],
+                        'port': self.info['port'],
+                        'rdns': True,
+                        'username': self.info.get('username'),
+                        'password': self.info.get('password')
+                    }
+                else:  # http/https
+                    return {
+                        'proxytype': self.info['type'],
+                        'addr': self.info['ip'],
+                        'port': self.info['port'],
+                        'username': self.info.get('username'),
+                        'password': self.info.get('password')
+                    }
         
-        proxy_info = ProxyManager.parse_proxy(proxy_text)
-        if not proxy_info:
-            return {}
-        
-        # Devolver directamente el diccionario para usar en requests
-        return {
-            'http': proxy_info['http'],
-            'https': proxy_info['https']
-        }
-
-# ============================================
-# CLIENTE MOODLE PROPIO (SIN DEPENDENCIAS)
-# ============================================
-
-class SimpleMoodleClient:
-    """Cliente Moodle simple sin dependencias externas."""
-    
-    def __init__(self, username, password, host, repo_id=4, proxy_dict=None):
-        self.username = username
-        self.password = password
-        self.host = host.rstrip('/')
-        self.repo_id = repo_id
-        self.session = requests.Session()
-        self.session.verify = False  # Desactivar verificación SSL para testing
-        self.logged_in = False
-        
-        # Configurar proxy si existe
-        if proxy_dict:
-            self.session.proxies.update(proxy_dict)
-        
-        # Headers por defecto
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
-    
-    def login(self):
-        """Login a Moodle usando token method"""
-        try:
-            # Obtener token de Moodle
-            token_url = f"{self.host}/login/token.php"
-            params = {
-                'username': self.username,
-                'password': self.password,
-                'service': 'moodle_mobile_app'
-            }
-            
-            response = self.session.get(token_url, params=params, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                if 'token' in data:
-                    self.token = data['token']
-                    self.logged_in = True
-                    return True
-                else:
-                    print(f"Error login: {data.get('error', 'Unknown error')}")
-                    return False
-            else:
-                print(f"HTTP Error en login: {response.status_code}")
-                return False
-                
-        except Exception as e:
-            print(f"Excepción en login: {str(e)}")
-            return False
-    
-    def getEvidences(self):
-        """Obtiene lista de evidencias"""
-        if not self.logged_in:
-            return []
-        
-        try:
-            # Usar WebService para obtener evidencias
-            ws_url = f"{self.host}/webservice/rest/server.php"
-            params = {
-                'wstoken': self.token,
-                'wsfunction': 'core_files_get_files',
-                'moodlewsrestformat': 'json',
-                'contextid': 1,  # Contexto del usuario
-                'component': 'user',
-                'filearea': 'draft',
-                'itemid': 0,
-                'filepath': '/',
-                'filename': ''
-            }
-            
-            response = self.session.post(ws_url, data=params, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                # Procesar y formatear evidencias
-                return self._format_evidences(data)
-            return []
-            
-        except Exception as e:
-            print(f"Error obteniendo evidencias: {str(e)}")
-            return []
-    
-    def _format_evidences(self, data):
-        """Formatea datos de evidencias"""
-        evidences = []
-        if isinstance(data, dict) and 'files' in data:
-            for i, file_data in enumerate(data['files']):
-                if file_data.get('filename') != '.':
-                    evidences.append({
-                        'name': file_data.get('filename', f'evidencia_{i}'),
-                        'files': [{
-                            'name': file_data.get('filename'),
-                            'filename': file_data.get('filename'),
-                            'directurl': file_data.get('url', ''),
-                            'size': file_data.get('filesize', 0)
-                        }]
-                    })
-        return evidences
-    
-    def createEvidence(self, evidname):
-        """Crea una nueva evidencia"""
-        return {'name': evidname, 'files': []}
-    
-    def upload_file(self, filepath, evidence, fileid=None, progressfunc=None, args=(), tokenize=False):
-        """Sube un archivo a Moodle"""
-        try:
-            if not os.path.exists(filepath):
-                return fileid, None
-            
-            filename = os.path.basename(filepath)
-            
-            # Subir archivo usando WebService
-            upload_url = f"{self.host}/webservice/upload.php"
-            
-            with open(filepath, 'rb') as f:
-                files = {
-                    'token': (None, self.token),
-                    'file': (filename, f, 'application/octet-stream')
-                }
-                
-                # Simular progreso si se especifica
-                if progressfunc:
-                    # Obtener tamaño del archivo
-                    file_size = os.path.getsize(filepath)
-                    # Llamar a progressfunc varias veces para simular progreso
-                    for i in range(1, 11):
-                        current = (file_size * i) // 10
-                        progressfunc(filename, current, file_size, 1024*1024, (10-i), args)
-                        time.sleep(0.1)
-                
-                response = self.session.post(upload_url, files=files, timeout=120)
-                
-                if response.status_code == 200:
-                    upload_data = response.json()
-                    if upload_data and len(upload_data) > 0:
-                        file_data = upload_data[0]
-                        
-                        # Crear URL pública
-                        public_url = self._create_public_url(file_data, filename)
-                        
-                        result = {
-                            'url': public_url,
-                            'normalurl': public_url,
-                            'name': filename
-                        }
-                        
-                        # Agregar a la evidencia
-                        if 'files' not in evidence:
-                            evidence['files'] = []
-                        evidence['files'].append(result)
-                        
-                        return fileid, result
-            
-            return fileid, None
-            
-        except Exception as e:
-            print(f"Error subiendo archivo: {str(e)}")
-            return fileid, None
-    
-    def _create_public_url(self, upload_data, filename):
-        """Crea URL pública para el archivo subido"""
-        try:
-            # URL base del draft
-            url_base = f"{self.host}/draftfile.php/{upload_data['contextid']}/user/draft/{upload_data['itemid']}/{quote(filename)}"
-            
-            # Convertir a URL pública con token
-            public_url = url_base.replace("draftfile.php/", "webservice/draftfile.php/") + "?token=" + self.token
-            return public_url
-            
-        except:
-            # Fallback simple
-            return f"{self.host}/webservice/draftfile.php/1/user/draft/1/{quote(filename)}?token={self.token}"
-    
-    def saveEvidence(self, evidence):
-        """Guarda la evidencia (simulado)"""
-        # En este cliente simple, no hacemos nada especial
-        return True
-    
-    def deleteEvidence(self, evidence):
-        """Elimina una evidencia"""
-        # En este cliente simple, simulamos eliminación
-        # En una implementación real, usarías el WebService para eliminar
-        return True
-    
-    def logout(self):
-        """Cierra la sesión"""
-        self.session.close()
-        self.logged_in = False
-
-# ============================================
-# FUNCIONES AUXILIARES
-# ============================================
+        return MoodleCompatibleProxy(proxy_info)
 
 def get_cuba_time():
     if CUBA_TZ:
@@ -598,23 +413,23 @@ class MemoryStats:
 memory_stats = MemoryStats()
 
 def get_random_large_file_message():
-    """Retorna un mensaje chistoso aleatorio para archivos grandes"""
+    """Retorna un mensaje chistoso aleatorio para archivos mayores a 500MB"""
     messages = [
-        "¡Uy! Este archivo pesa más que mis ganas de trabajar los lunes 📦",
-        "¿Seguro que no estás subiendo toda la temporada de tu serie favorita? 🎬",
-        "Archivo detectado: XXL. Mi bandeja de entrada necesita hacer dieta 🍔",
-        "¡200MB alert! Esto es más grande que mi capacidad de decisión en un restaurante 🍕",
-        "Tu archivo necesita su propio código postal para viajar por internet 📮",
-        "Vaya, con este peso hasta el bot necesita ir al gimnasio 💪",
-        "¡Archivo XXL detectado! Preparando equipo de escalada para subirlo 🧗",
-        "Este archivo es tan grande que necesita su propia habitación en la nube ☁️",
-        "¿Esto es un archivo o un elefante digital disfrazado? 🐘",
-        "¡Alerta de megabyte! Tu archivo podría tener su propia órbita 🛰️",
-        "Archivo pesado detectado: activando modo grúa industrial 🏗️",
-        "Este archivo hace que mi servidor sude bytes 💦",
-        "¡Tamaño máximo superado! Necesitaré un café extra para esto ☕",
-        "Tu archivo es más grande que mi lista de excusas para no hacer ejercicio 🏃",
-        "Detectado: Archivo XXL. Preparando refuerzos estructurales 🏗️"
+        "¡500MB ALERT! Esto es más pesado que mi responsabilidad en este bot 📦",
+        "¿Vas a subir la biblioteca de Alejandría en digital o qué? 📚",
+        "Archivo detectado: Tamaño Titanic 🚢 ¡Prepárense para la inmersión!",
+        "¡500MB! Esto no es un archivo, es un elefante digital 🐘",
+        "Tu archivo necesita visa para viajar por internet ✈️",
+        "Con este peso, hasta el bot necesita ir al gimnasio 💪🏋️‍♂️",
+        "¡Alerta de medio gigabyte! Tu archivo tiene su propia gravedad 🌍",
+        "Este archivo es tan grande que tiene código postal propio 📮",
+        "500MB... ¿seguro que no es un sistema operativo completo? 💻",
+        "¡Archivo XXL detectado! Activando modo transatlántico 🚢",
+        "Tu archivo pesa más que mis ganas de trabajar los viernes 😴",
+        "500MB = Tiempo suficiente para hacer un café ☕ y tomárselo",
+        "Este archivo hace que mi servidor sude gigabytes 💦",
+        "¡Tamaño máximo superado! Necesitaré un equipo de rescate 🚨",
+        "Tu archivo es más grande que mi paciencia con los bugs 🐛"
     ]
     return random.choice(messages)
 
@@ -645,8 +460,11 @@ def uploadFile(filename, currentBits, totalBits, speed, time_val, args):
     except Exception as ex:
         print(str(ex))
 
-def send_funny_message_and_delete(bot, chat_id, funny_message, file_size_mb):
-    """Envía mensaje chistoso y lo elimina después de 8 segundos INMEDIATAMENTE"""
+def send_funny_message_and_delete_immediately(bot, chat_id, funny_message, file_size_mb):
+    """
+    Envía mensaje chistoso y lo elimina EXACTAMENTE a los 8 segundos
+    NO espera a que termine la subida
+    """
     try:
         warning_msg = bot.sendMessage(
             chat_id, 
@@ -655,16 +473,18 @@ def send_funny_message_and_delete(bot, chat_id, funny_message, file_size_mb):
             f"⬇️ Bueno, lo voy a subir😡"
         )
         
-        # Eliminar después de 8 segundos INMEDIATAMENTE (no esperar a que termine la subida)
-        def delete_after_delay():
-            time.sleep(8)
+        # Eliminar INMEDIATAMENTE después de 8 segundos
+        def delete_after_8s():
+            time.sleep(8)  # Exactamente 8 segundos
             try:
                 bot.deleteMessage(chat_id, warning_msg.message_id)
-                print(f"Mensaje chistoso eliminado después de 8 segundos")
+                print(f"✅ Mensaje eliminado automáticamente después de 8 segundos")
             except Exception as e:
-                print(f"Error eliminando mensaje: {e}")
+                print(f"❌ Error eliminando mensaje: {e}")
         
-        threading.Thread(target=delete_after_delay, daemon=True).start()
+        # Iniciar thread que se ejecuta INDEPENDIENTEMENTE de la subida
+        delete_thread = threading.Thread(target=delete_after_8s, daemon=True)
+        delete_thread.start()
         
         return warning_msg
     except Exception as e:
@@ -674,37 +494,34 @@ def send_funny_message_and_delete(bot, chat_id, funny_message, file_size_mb):
 def processUploadFiles(filename, filesize, files, update, bot, message, thread=None, jdb=None):
     try:
         bot.editMessageText(message, '⬆️ Preparando Para Subir ☁ ●●○')
+        evidence = None
+        fileid = None
         user_info = jdb.get_user(update.message.sender.username)
         
-        # OBTENER PROXY para nuestro cliente simple
-        proxy_dict = {}
+        # OBTENER PROXY COMPATIBLE con MoodleClient
+        proxy = None
         if user_info.get('proxy'):
-            proxy_dict = ProxyManager.get_proxy_dict_for_client(user_info['proxy'])
+            proxy = ProxyManager.get_proxy_for_moodle(user_info['proxy'])
         
-        # Usar nuestro cliente simple
-        client = SimpleMoodleClient(
+        client = MoodleClient(
             user_info['moodle_user'],
             user_info['moodle_password'],
             user_info['moodle_host'],
             user_info['moodle_repo_id'],
-            proxy_dict=proxy_dict
+            proxy=proxy  # Ahora es compatible
         )
         
-        logged = client.login()
-        if logged:
+        loged = client.login()
+        if loged:
             evidences = client.getEvidences()
             evidname = str(filename).split('.')[0]
-            
-            # Buscar o crear evidencia
-            evidence = None
             for evid in evidences:
                 if evid['name'] == evidname:
                     evidence = evid
                     break
-            
             if evidence is None:
                 evidence = client.createEvidence(evidname)
-            
+
             originalfile = ''
             if len(files) > 1:
                 originalfile = filename
@@ -719,14 +536,13 @@ def processUploadFiles(filename, filesize, files, update, bot, message, thread=N
                     tokenize = True
                 
                 while resp is None:
-                    _, resp = client.upload_file(
-                        f, evidence, None,
+                    fileid, resp = client.upload_file(
+                        f, evidence, fileid,
                         progressfunc=uploadFile,
                         args=(bot, message, originalfile, thread),
                         tokenize=tokenize
                     )
-                    if resp:
-                        draftlist.append(resp)
+                    draftlist.append(resp)
                     iter += 1
                     if iter >= 10:
                         break
@@ -737,12 +553,10 @@ def processUploadFiles(filename, filesize, files, update, bot, message, thread=N
             except:
                 pass
             
-            client.logout()
             return draftlist
         else:
             bot.editMessageText(message, '➥ Error En La Pagina ✗')
             return None
-            
     except Exception as ex:
         bot.editMessageText(message, f'➥ Error ✗\n{str(ex)}')
         return None
@@ -752,6 +566,7 @@ def processFile(update, bot, message, file, thread=None, jdb=None):
     getUser = jdb.get_user(update.message.sender.username)
     max_file_size = 1024 * 1024 * getUser['zips']
     file_upload_count = 0
+    client = None
     
     if file_size > max_file_size:
         compresingInfo = infos.createCompresing(file, file_size, max_file_size)
@@ -762,70 +577,61 @@ def processFile(update, bot, message, file, thread=None, jdb=None):
         zip.write(file)
         zip.close()
         mult_file.close()
-        
-        results = processUploadFiles(file, file_size, mult_file.files, update, bot, message, jdb=jdb)
-        file_upload_count = len(mult_file.files)
-        
+        client = processUploadFiles(file, file_size, mult_file.files, update, bot, message, jdb=jdb)
         try:
             os.unlink(file)
         except:
             pass
+        file_upload_count = len(mult_file.files)
     else:
-        results = processUploadFiles(file, file_size, [file], update, bot, message, jdb=jdb)
+        client = processUploadFiles(file, file_size, [file], update, bot, message, jdb=jdb)
         file_upload_count = 1
     
-    if results:
+    evidname = ''
+    files = []
+    if client:
         evidname = str(file).split('.')[0]
         txtname = evidname + '.txt'
-        
         try:
-            # OBTENER PROXY para verificar evidencias
-            proxy_dict = {}
+            # OBTENER PROXY COMPATIBLE
+            proxy = None
             if getUser.get('proxy'):
-                proxy_dict = ProxyManager.get_proxy_dict_for_client(getUser['proxy'])
+                proxy = ProxyManager.get_proxy_for_moodle(getUser['proxy'])
             
-            moodle_client = SimpleMoodleClient(
+            moodle_client = MoodleClient(
                 getUser['moodle_user'],
                 getUser['moodle_password'],
                 getUser['moodle_host'],
                 getUser['moodle_repo_id'],
-                proxy_dict=proxy_dict
+                proxy=proxy
             )
             
             if moodle_client.login():
                 evidences = moodle_client.getEvidences()
                 
-                # Buscar la evidencia que acabamos de crear
                 evidence_index = -1
-                files = []
                 for idx, ev in enumerate(evidences):
                     if ev['name'] == evidname:
-                        files = ev.get('files', [])
+                        files = ev['files']
+                        for i in range(len(files)):
+                            url = files[i]['directurl']
+                            if '?forcedownload=1' in url:
+                                url = url.replace('?forcedownload=1', '')
+                            elif '&forcedownload=1' in url:
+                                url = url.replace('&forcedownload=1', '')
+                            if '&token=' in url and '?' not in url:
+                                url = url.replace('&token=', '?token=', 1)
+                            files[i]['directurl'] = url
                         evidence_index = idx
                         break
                 
                 moodle_client.logout()
-                
-                # Usar el índice correcto
                 findex = evidence_index if evidence_index != -1 else len(evidences) - 1
         except Exception as e:
             print(f"Error obteniendo índice de evidencia: {e}")
             findex = 0
         
         bot.deleteMessage(message.chat.id, message.message_id)
-        
-        # Si no encontramos archivos en evidencias, usar los resultados de la subida
-        if not files:
-            files = []
-            for result in results:
-                if result:
-                    files.append({
-                        'name': result.get('name', ''),
-                        'filename': result.get('name', ''),
-                        'directurl': result.get('url', ''),
-                        'normalurl': result.get('normalurl', '')
-                    })
-        
         finishInfo = infos.createFinishUploading(file, file_size, max_file_size, file_upload_count, file_upload_count, findex)
         filesInfo = infos.createFileMsg(file, files)
         bot.sendMessage(message.chat.id, finishInfo + '\n' + filesInfo, parse_mode='html')
@@ -840,7 +646,7 @@ def processFile(update, bot, message, file, thread=None, jdb=None):
             moodle_host=getUser['moodle_host']
         )
         
-        if files:
+        if len(files) > 0:
             txtname = str(file).split('/')[-1].split('.')[0] + '.txt'
             sendTxt(txtname, files, update, bot)
     else:
@@ -863,12 +669,20 @@ def sendTxt(name, files, update, bot):
         txt = open(name, 'w', encoding='utf-8')
         
         for i, f in enumerate(files):
-            url = f.get('directurl', f.get('url', ''))
+            url = f['directurl']
             
-            if url:
-                txt.write(url)
-                if i < len(files) - 1:
-                    txt.write('\n\n')
+            if '?forcedownload=1' in url:
+                url = url.replace('?forcedownload=1', '')
+            elif '&forcedownload=1' in url:
+                url = url.replace('&forcedownload=1', '')
+            
+            if '&token=' in url and '?' not in url:
+                url = url.replace('&token=', '?token=', 1)
+            
+            txt.write(url)
+            
+            if i < len(files) - 1:
+                txt.write('\n\n')
         
         txt.close()
         bot.sendFile(update.message.chat.id, name)
@@ -1057,10 +871,9 @@ def onmessage(update, bot: ObigramClient):
             bot.editMessageText(message, stats_msg)
             return
 
-        # COMANDOS DE ADMINISTRADOR (mantener los mismos)
+        # COMANDOS DE ADMINISTRADOR (mantener igual)
         if username == ADMIN_USERNAME:
-            # ... (mantener todos los comandos admin iguales) ...
-            # Solo cambia las partes que usan MoodleClient por SimpleMoodleClient
+            # ... (todos los comandos admin se mantienen igual) ...
             pass
 
         # COMANDOS NORMALES
@@ -1079,44 +892,46 @@ def onmessage(update, bot: ObigramClient):
             bot.editMessageText(message, start_msg)
             
         elif '/files' == msgText:
-            proxy_dict = {}
+            # OBTENER PROXY COMPATIBLE
+            proxy = None
             if user_info.get('proxy'):
-                proxy_dict = ProxyManager.get_proxy_dict_for_client(user_info['proxy'])
+                proxy = ProxyManager.get_proxy_for_moodle(user_info['proxy'])
             
-            client = SimpleMoodleClient(
+            client = MoodleClient(
                 user_info['moodle_user'],
                 user_info['moodle_password'],
                 user_info['moodle_host'],
                 user_info['moodle_repo_id'],
-                proxy_dict=proxy_dict
+                proxy=proxy
             )
             
-            logged = client.login()
-            if logged:
+            loged = client.login()
+            if loged:
                 files = client.getEvidences()
                 filesInfo = infos.createFilesMsg(files)
                 bot.editMessageText(message, filesInfo)
                 client.logout()
             else:
-                bot.editMessageText(message, '➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado')
+                bot.editMessageText(message, '➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: ' + client.path)
                 
         elif '/txt_' in msgText:
             try:
                 findex = int(str(msgText).split('_')[1])
-                proxy_dict = {}
+                # OBTENER PROXY COMPATIBLE
+                proxy = None
                 if user_info.get('proxy'):
-                    proxy_dict = ProxyManager.get_proxy_dict_for_client(user_info['proxy'])
+                    proxy = ProxyManager.get_proxy_for_moodle(user_info['proxy'])
                 
-                client = SimpleMoodleClient(
+                client = MoodleClient(
                     user_info['moodle_user'],
                     user_info['moodle_password'],
                     user_info['moodle_host'],
                     user_info['moodle_repo_id'],
-                    proxy_dict=proxy_dict
+                    proxy=proxy
                 )
                 
-                logged = client.login()
-                if logged:
+                loged = client.login()
+                if loged:
                     evidences = client.getEvidences()
                     if findex < 0 or findex >= len(evidences):
                         bot.editMessageText(message, '❌ Índice inválido. Use /files para ver la lista.')
@@ -1129,7 +944,7 @@ def onmessage(update, bot: ObigramClient):
                     client.logout()
                     bot.editMessageText(message, '📄 TXT Aquí 👇')
                 else:
-                    bot.editMessageText(message, '➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado')
+                    bot.editMessageText(message, '➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: ' + client.path)
             except ValueError:
                 bot.editMessageText(message, '❌ Formato incorrecto. Use: /txt_0')
             except Exception as e:
@@ -1139,20 +954,21 @@ def onmessage(update, bot: ObigramClient):
         elif '/del_' in msgText:
             try:
                 findex = int(str(msgText).split('_')[1])
-                proxy_dict = {}
+                # OBTENER PROXY COMPATIBLE
+                proxy = None
                 if user_info.get('proxy'):
-                    proxy_dict = ProxyManager.get_proxy_dict_for_client(user_info['proxy'])
+                    proxy = ProxyManager.get_proxy_for_moodle(user_info['proxy'])
                 
-                client = SimpleMoodleClient(
+                client = MoodleClient(
                     user_info['moodle_user'],
                     user_info['moodle_password'],
                     user_info['moodle_host'],
                     user_info['moodle_repo_id'],
-                    proxy_dict=proxy_dict
+                    proxy=proxy
                 )
                 
-                logged = client.login()
-                if logged:
+                loged = client.login()
+                if loged:
                     evidences = client.getEvidences()
                     if findex < 0 or findex >= len(evidences):
                         bot.editMessageText(message, '❌ Índice inválido. Use /files para ver la lista.')
@@ -1165,12 +981,30 @@ def onmessage(update, bot: ObigramClient):
                     deleted_files = []
                     if 'files' in evfile:
                         for f in evfile['files']:
-                            filename = f.get('filename', f.get('name', f"archivo_{len(deleted_files)+1}"))
+                            filename = None
+                            if 'filename' in f:
+                                filename = f['filename']
+                            elif 'name' in f:
+                                filename = f['name']
+                            elif 'title' in f:
+                                filename = f['title']
+                            elif 'directurl' in f:
+                                url = f['directurl']
+                                if 'filename=' in url:
+                                    import urllib.parse
+                                    parsed = urllib.parse.urlparse(url)
+                                    params = urllib.parse.parse_qs(parsed.query)
+                                    if 'filename' in params:
+                                        filename = params['filename'][0]
+                                elif '/' in url:
+                                    filename = url.split('/')[-1].split('?')[0]
+                            
+                            if not filename:
+                                filename = f"archivo_{len(deleted_files)+1}"
+                            
                             deleted_files.append(filename)
                     
-                    # Simular eliminación (en cliente real usarías WebService)
-                    # client.deleteEvidence(evfile)
-                    
+                    client.deleteEvidence(evfile)
                     client.logout()
                     
                     for filename in deleted_files:
@@ -1187,7 +1021,7 @@ def onmessage(update, bot: ObigramClient):
                         bot.editMessageText(message, f'🗑️ Evidencia eliminada: {evidence_name}')
                     
                 else:
-                    bot.editMessageText(message, '➲ Error y Causas ✗\n1-Revise su Cuenta\n2-Servidor Deshabilitado')
+                    bot.editMessageText(message, '➲ Error y Causas ✗\n1-Revise su Cuenta\n2-Servidor Deshabilitado: ' + client.path)
             except ValueError:
                 bot.editMessageText(message, '❌ Formato incorrecto. Use: /del_0')
             except Exception as e:
@@ -1196,20 +1030,21 @@ def onmessage(update, bot: ObigramClient):
                 
         elif '/delall' in msgText:
             try:
-                proxy_dict = {}
+                # OBTENER PROXY COMPATIBLE
+                proxy = None
                 if user_info.get('proxy'):
-                    proxy_dict = ProxyManager.get_proxy_dict_for_client(user_info['proxy'])
+                    proxy = ProxyManager.get_proxy_for_moodle(user_info['proxy'])
                 
-                client = SimpleMoodleClient(
+                client = MoodleClient(
                     user_info['moodle_user'],
                     user_info['moodle_password'],
                     user_info['moodle_host'],
                     user_info['moodle_repo_id'],
-                    proxy_dict=proxy_dict
+                    proxy=proxy
                 )
                 
-                logged = client.login()
-                if logged:
+                loged = client.login()
+                if loged:
                     evfiles = client.getEvidences()
                     if not evfiles:
                         bot.editMessageText(message, 'ℹ️ No hay evidencias para eliminar')
@@ -1225,15 +1060,37 @@ def onmessage(update, bot: ObigramClient):
                         total_files += len(files_in_evidence)
                         
                         for f in files_in_evidence:
-                            filename = f.get('filename', f.get('name', f"archivo_{len(all_deleted_files)+1}"))
+                            filename = None
+                            if 'filename' in f:
+                                filename = f['filename']
+                            elif 'name' in f:
+                                filename = f['name']
+                            elif 'title' in f:
+                                filename = f['title']
+                            elif 'directurl' in f:
+                                url = f['directurl']
+                                if 'filename=' in url:
+                                    import urllib.parse
+                                    parsed = urllib.parse.urlparse(url)
+                                    params = urllib.parse.parse_qs(parsed.query)
+                                    if 'filename' in params:
+                                        filename = params['filename'][0]
+                                elif '/' in url:
+                                    filename = url.split('/')[-1].split('?')[0]
+                            
+                            if not filename:
+                                filename = f"archivo_{len(all_deleted_files)+1}"
+                            
                             all_deleted_files.append({
                                 'filename': filename,
                                 'evidence_name': ev['name']
                             })
                     
-                    # Simular eliminación de todas
-                    # for item in evfiles:
-                    #     client.deleteEvidence(item)
+                    for item in evfiles:
+                        try:
+                            client.deleteEvidence(item)
+                        except Exception as e:
+                            print(f"Error eliminando evidencia: {e}")
                     
                     client.logout()
                     
@@ -1255,7 +1112,7 @@ def onmessage(update, bot: ObigramClient):
                     bot.editMessageText(message, f'🗑️ TODAS las evidencias eliminadas\n📦 {total_evidences} evidencia(s) borrada(s)\n📁 Total archivos: {total_files}')
                     
                 else:
-                    bot.editMessageText(message, '➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado')
+                    bot.editMessageText(message, '➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: ' + client.path)
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
                 print(f"Error en /delall: {e}")
@@ -1263,30 +1120,17 @@ def onmessage(update, bot: ObigramClient):
         elif 'http' in msgText:
             url = msgText
             
-            # Verificación de tamaño con eliminación INMEDIATA a los 8 segundos
+            # Verificación de tamaño con límite de 500 MB
             try:
-                import requests
-                headers = {}
-                if user_info.get('proxy'):
-                    proxy_dict = ProxyManager.get_proxy_dict_for_client(user_info['proxy'])
-                    if proxy_dict:
-                        # Configurar proxy para la verificación
-                        temp_session = requests.Session()
-                        temp_session.proxies.update(proxy_dict)
-                        response = temp_session.head(url, allow_redirects=True, timeout=5)
-                        temp_session.close()
-                    else:
-                        response = requests.head(url, allow_redirects=True, timeout=5)
-                else:
-                    response = requests.head(url, allow_redirects=True, timeout=5)
-                
+                # Obtener tamaño del archivo
+                response = requests.head(url, allow_redirects=True, timeout=5)
                 file_size = int(response.headers.get('content-length', 0))
                 file_size_mb = file_size / (1024 * 1024)
                 
-                # Si es mayor a 200MB, mostrar y eliminar INMEDIATAMENTE
-                if file_size_mb > 200:
+                # Si es mayor a 500MB, mostrar mensaje y eliminar a los 8 segundos
+                if file_size_mb > 500:
                     funny_message = get_random_large_file_message()
-                    send_funny_message_and_delete(bot, update.message.chat.id, funny_message, file_size_mb)
+                    send_funny_message_and_delete_immediately(bot, update.message.chat.id, funny_message, file_size_mb)
                 
             except Exception as e:
                 # Silenciar error de verificación
@@ -1312,4 +1156,3 @@ if __name__ == '__main__':
         main()
     except:
         main()
-
