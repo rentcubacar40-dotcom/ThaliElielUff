@@ -61,9 +61,6 @@ PRE_CONFIGURATED_USERS = {
     }
 }
 
-# Diccionario para almacenar confirmaciones de eliminación
-delete_confirmation = {}
-
 def get_cuba_time():
     if CUBA_TZ:
         cuba_time = datetime.datetime.now(CUBA_TZ)
@@ -93,11 +90,11 @@ def format_file_size(size_bytes):
         return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
 
 # ==============================
-# SISTEMA DE ESTADÍSTICAS EN MEMORIA MEJORADO
+# SISTEMA DE ESTADÍSTICAS EN MEMORIA
 # ==============================
 
 class MemoryStats:
-    """Sistema de estadísticas en memoria (sin archivos) - MEJORADO"""
+    """Sistema de estadísticas en memoria (sin archivos)"""
     
     def __init__(self):
         # Reiniciar todo al iniciar
@@ -111,10 +108,10 @@ class MemoryStats:
             'total_size_uploaded': 0  # en bytes
         }
         self.user_stats = {}  # username -> {uploads, deletes, total_size, last_activity}
-        self.upload_logs = []  # {timestamp, username, name, file_size_bytes, file_size_formatted, moodle_host, type, parts_count}
-        self.delete_logs = []  # {timestamp, username, name, moodle_host, type, parts_count, file_size_formatted}
+        self.upload_logs = []  # {timestamp, username, filename, file_size_bytes, file_size_formatted, moodle_host}
+        self.delete_logs = []  # {timestamp, username, filename, evidence_name, moodle_host, type}
     
-    def log_upload(self, username, name, file_size, moodle_host, is_evidence=True, parts_count=0):
+    def log_upload(self, username, filename, file_size, moodle_host):
         """Registra una subida exitosa"""
         try:
             file_size = int(file_size)
@@ -142,12 +139,10 @@ class MemoryStats:
         log_entry = {
             'timestamp': format_cuba_datetime(),
             'username': username,
-            'name': name,
+            'filename': filename,
             'file_size_bytes': file_size,
             'file_size_formatted': format_file_size(file_size),
-            'moodle_host': moodle_host,
-            'type': 'evidence' if is_evidence else 'file',
-            'parts_count': parts_count  # Número de partes/comprimidos
+            'moodle_host': moodle_host
         }
         self.upload_logs.append(log_entry)
         
@@ -157,7 +152,7 @@ class MemoryStats:
         
         return True
     
-    def log_delete(self, username, name, moodle_host, is_evidence=True, parts_count=0, file_size_formatted="0 B"):
+    def log_delete(self, username, filename, evidence_name, moodle_host):
         """Registra una eliminación individual"""
         # Actualizar estadísticas globales
         self.stats['total_deletes'] += 1
@@ -178,11 +173,10 @@ class MemoryStats:
         log_entry = {
             'timestamp': format_cuba_datetime(),
             'username': username,
-            'name': name,
+            'filename': filename,
+            'evidence_name': evidence_name,
             'moodle_host': moodle_host,
-            'type': 'delete_evidence' if is_evidence else 'delete_file',
-            'parts_count': parts_count,  # Número de partes si es una evidencia con múltiples archivos
-            'file_size_formatted': file_size_formatted  # Tamaño del archivo/evidencia
+            'type': 'delete'
         }
         self.delete_logs.append(log_entry)
         
@@ -193,9 +187,9 @@ class MemoryStats:
         return True
     
     def log_delete_all(self, username, deleted_evidences, deleted_files, moodle_host):
-        """Registra eliminación masiva"""
-        # Actualizar estadísticas globales
-        self.stats['total_deletes'] += deleted_files
+        """Registra eliminación masiva - CORREGIDO: cuenta todos los archivos"""
+        # Actualizar estadísticas globales - contar CADA ARCHIVO eliminado
+        self.stats['total_deletes'] += deleted_files  # ¡Sumar todos los archivos, no solo 1!
         
         # Actualizar estadísticas del usuario
         if username not in self.user_stats:
@@ -206,6 +200,7 @@ class MemoryStats:
                 'last_activity': format_cuba_datetime()
             }
         
+        # ¡IMPORTANTE! Sumar TODOS los archivos eliminados, no solo 1
         self.user_stats[username]['deletes'] += deleted_files
         self.user_stats[username]['last_activity'] = format_cuba_datetime()
         
@@ -437,21 +432,14 @@ def processFile(update,bot,message,file,thread=None,jdb=None):
         filesInfo = infos.createFileMsg(file,files)
         bot.sendMessage(message.chat.id,finishInfo+'\n'+filesInfo,parse_mode='html')
         
-        # REGISTRAR SUBIDA EN MEMORIA - MEJORADO
+        # REGISTRAR SUBIDA EN MEMORIA
         username = update.message.sender.username
         filename_clean = os.path.basename(file)
-        
-        # Determinar si es archivo único o evidencia con partes
-        is_evidence = file_upload_count > 0
-        name_to_log = evidname if is_evidence else filename_clean
-        
         memory_stats.log_upload(
             username=username,
-            name=name_to_log,
+            filename=filename_clean,
             file_size=file_size,
-            moodle_host=getUser['moodle_host'],
-            is_evidence=is_evidence,
-            parts_count=file_upload_count if file_upload_count > 1 else 0
+            moodle_host=getUser['moodle_host']
         )
         
         if len(files)>0:
@@ -679,9 +667,7 @@ Aún no se ha realizado ninguna acción en el bot.
                     if uploads:
                         logs_msg += "⬆️ ÚLTIMAS SUBIDAS:\n"
                         for log in uploads:
-                            parts_text = f" ({log.get('parts_count', 0)} partes)" if log.get('parts_count', 0) > 1 else ""
-                            evidence_text = f"📁 Evidencia: {log['name']}{parts_text}" if log.get('type') == 'evidence' else f"📄 Archivo: {log['name']}"
-                            logs_msg += f"• {log['timestamp']} - @{log['username']}: {evidence_text} ({log['file_size_formatted']})\n"
+                            logs_msg += f"• {log['timestamp']} - @{log['username']}: {log['filename']} ({log['file_size_formatted']})\n"
                         logs_msg += "\n"
                     
                     if deletes:
@@ -689,11 +675,8 @@ Aún no se ha realizado ninguna acción en el bot.
                         for log in deletes:
                             if log['type'] == 'delete_all':
                                 logs_msg += f"• {log['timestamp']} - @{log['username']}: ELIMINÓ TODO ({log.get('deleted_evidences', 1)} evidencia(s), {log.get('deleted_files', '?')} archivos)\n"
-                            elif log['type'] == 'delete_evidence':
-                                parts_text = f" ({log.get('parts_count', 0)} partes)" if log.get('parts_count', 0) > 0 else ""
-                                logs_msg += f"• {log['timestamp']} - @{log['username']}: Evidencia eliminada: {log['name']}{parts_text} ({log.get('file_size_formatted', '?')})\n"
                             else:
-                                logs_msg += f"• {log['timestamp']} - @{log['username']}: Archivo eliminado: {log['name']} ({log.get('file_size_formatted', '?')})\n"
+                                logs_msg += f"• {log['timestamp']} - @{log['username']}: {log['filename']} (de: {log['evidence_name']})\n"
                     
                     if len(logs_msg) > 4000:
                         logs_msg = logs_msg[:4000] + "\n\n⚠️ Logs truncados (demasiados)"
@@ -742,12 +725,7 @@ Aún no se ha realizado ninguna acción en el bot.
                     uploads_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     for i, log in enumerate(uploads, 1):
-                        if log.get('type') == 'evidence':
-                            parts_text = f" ({log.get('parts_count', 0)} partes)" if log.get('parts_count', 0) > 1 else ""
-                            uploads_msg += f"{i}. 📁 Evidencia: {log['name']}{parts_text}\n"
-                        else:
-                            uploads_msg += f"{i}. 📄 Archivo: {log['name']}\n"
-                        
+                        uploads_msg += f"{i}. {log['filename']}\n"
                         uploads_msg += f"   👤 @{log['username']}\n"
                         uploads_msg += f"   📅 {log['timestamp']}\n"
                         uploads_msg += f"   📏 {log['file_size_formatted']}\n"
@@ -776,18 +754,12 @@ Aún no se ha realizado ninguna acción en el bot.
                             deletes_msg += f"   📅 {log['timestamp']}\n"
                             deletes_msg += f"   ⚠️ ELIMINÓ {log.get('deleted_evidences', 1)} EVIDENCIA(S)\n"
                             deletes_msg += f"   🗑️ Archivos borrados: {log.get('deleted_files', '?')}\n"
-                        elif log['type'] == 'delete_evidence':
-                            parts_text = f" ({log.get('parts_count', 0)} partes)" if log.get('parts_count', 0) > 0 else ""
-                            deletes_msg += f"{i}. Evidencia eliminada: {log['name']}{parts_text}\n"
-                            deletes_msg += f"   👤 @{log['username']}\n"
-                            deletes_msg += f"   📅 {log['timestamp']}\n"
                         else:
-                            deletes_msg += f"{i}. Archivo eliminado: {log['name']}\n"
+                            deletes_msg += f"{i}. {log['filename']}\n"
                             deletes_msg += f"   👤 @{log['username']}\n"
                             deletes_msg += f"   📅 {log['timestamp']}\n"
+                            deletes_msg += f"   📁 Evidencia: {log['evidence_name']}\n"
                         
-                        if 'file_size_formatted' in log and log['file_size_formatted'] != "0 B":
-                            deletes_msg += f"   📏 {log['file_size_formatted']}\n"
                         deletes_msg += f"   🔗 {log['moodle_host']}\n\n"
                     
                     bot.editMessageText(message, deletes_msg)
@@ -876,16 +848,11 @@ Aún no se ha realizado ninguna acción en el bot.
                     evfile = evidences[findex]
                     evidence_name = evfile['name']
                     
-                    # OBTENER INFORMACIÓN DE LA EVIDENCIA PARA REGISTRO
+                    # OBTENER NOMBRES REALES DE LOS ARCHIVOS
                     deleted_files = []
-                    total_file_size = 0
-                    
                     if 'files' in evfile:
                         for f in evfile['files']:
                             filename = None
-                            file_size = 0
-                            
-                            # Obtener nombre del archivo
                             if 'filename' in f:
                                 filename = f['filename']
                             elif 'name' in f:
@@ -906,54 +873,25 @@ Aún no se ha realizado ninguna acción en el bot.
                             if not filename:
                                 filename = f"archivo_{len(deleted_files)+1}"
                             
-                            # Obtener tamaño del archivo si está disponible
-                            if 'filesize' in f:
-                                try:
-                                    file_size = int(f['filesize'])
-                                except:
-                                    file_size = 0
-                            
-                            deleted_files.append({
-                                'filename': filename,
-                                'size': file_size
-                            })
-                            total_file_size += file_size
-                    
-                    parts_count = len(deleted_files)
+                            deleted_files.append(filename)
                     
                     # Eliminar la evidencia
                     client.deleteEvidence(evfile)
                     client.logout()
                     
-                    # REGISTRAR ELIMINACIÓN - MEJORADO
-                    file_size_formatted = format_file_size(total_file_size)
+                    # REGISTRAR CADA ARCHIVO ELIMINADO
+                    for filename in deleted_files:
+                        memory_stats.log_delete(
+                            username=username,
+                            filename=filename,
+                            evidence_name=evidence_name,
+                            moodle_host=user_info['moodle_host']
+                        )
                     
-                    # Si es solo un archivo, registrar como "Archivo eliminado"
-                    # Si tiene múltiples partes, registrar como "Evidencia eliminada"
-                    if parts_count == 1:
-                        # Archivo único - mostrar nombre del archivo
-                        filename = deleted_files[0]['filename'] if deleted_files else evidence_name
-                        memory_stats.log_delete(
-                            username=username,
-                            name=filename,
-                            moodle_host=user_info['moodle_host'],
-                            is_evidence=False,
-                            parts_count=0,
-                            file_size_formatted=file_size_formatted
-                        )
-                        bot.editMessageText(message, f'🗑️ Archivo eliminado: {filename}\n📏 Tamaño: {file_size_formatted}')
+                    if len(deleted_files) > 0:
+                        bot.editMessageText(message, f'🗑️ Evidencia eliminada: {evidence_name}\n📦 {len(deleted_files)} archivo(s) borrado(s)')
                     else:
-                        # Evidencia con múltiples partes
-                        memory_stats.log_delete(
-                            username=username,
-                            name=evidence_name,
-                            moodle_host=user_info['moodle_host'],
-                            is_evidence=True,
-                            parts_count=parts_count,
-                            file_size_formatted=file_size_formatted
-                        )
-                        parts_text = f" ({parts_count} parte{'s' if parts_count > 1 else ''})" if parts_count > 0 else ""
-                        bot.editMessageText(message, f'🗑️ Evidencia eliminada{parts_text}: {evidence_name}\n📏 Tamaño total: {file_size_formatted}\n📦 Archivos: {parts_count}')
+                        bot.editMessageText(message, f'🗑️ Evidencia eliminada: {evidence_name}')
                     
                 else:
                     bot.editMessageText(message,'➲ Error y Causas ✗\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
@@ -965,7 +903,6 @@ Aún no se ha realizado ninguna acción en el bot.
                 
         elif '/delall' in msgText:
             try:
-                # SOLICITAR CONFIRMACIÓN
                 proxy = ProxyCloud.parse(user_info['proxy'])
                 client = MoodleClient(user_info['moodle_user'],
                                        user_info['moodle_password'],
@@ -975,112 +912,47 @@ Aún no se ha realizado ninguna acción en el bot.
                 loged = client.login()
                 if loged:
                     evfiles = client.getEvidences()
-                    client.logout()
-                    
                     if not evfiles:
                         bot.editMessageText(message, 'ℹ️ No hay evidencias para eliminar')
+                        client.logout()
                         return
                     
                     total_evidences = len(evfiles)
                     total_files = 0
                     
-                    # Contar archivos totales
+                    # Contar archivos totales y registrar cada archivo individual
+                    all_deleted_files = []
                     for ev in evfiles:
                         files_in_evidence = ev.get('files', [])
                         total_files += len(files_in_evidence)
-                    
-                    # Guardar información para confirmación
-                    delete_confirmation[username] = {
-                        'total_evidences': total_evidences,
-                        'total_files': total_files,
-                        'moodle_host': user_info['moodle_host']
-                    }
-                    
-                    # Mostrar mensaje de confirmación
-                    confirm_msg = f"⚠️ ¿ESTÁS SEGURO DE ELIMINAR TODO?\n\n"
-                    confirm_msg += f"📦 Evidencias a eliminar: {total_evidences}\n"
-                    confirm_msg += f"📁 Archivos totales: {total_files}\n\n"
-                    confirm_msg += f"Esta acción NO se puede deshacer.\n"
-                    confirm_msg += f"Para confirmar, usa el comando:\n"
-                    confirm_msg += f"<code>/delall_confirm</code>"
-                    
-                    bot.editMessageText(message, confirm_msg, parse_mode='html')
-                    
-                else:
-                    bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
-            except Exception as e:
-                bot.editMessageText(message, f'❌ Error: {str(e)}')
-                print(f"Error en /delall: {e}")
-                
-        elif '/delall_confirm' in msgText:
-            try:
-                # VERIFICAR CONFIRMACIÓN
-                if username not in delete_confirmation:
-                    bot.editMessageText(message, '❌ Primero debes usar /delall para ver qué vas a eliminar')
-                    return
-                
-                confirm_data = delete_confirmation[username]
-                total_evidences = confirm_data['total_evidences']
-                total_files = confirm_data['total_files']
-                moodle_host = confirm_data['moodle_host']
-                
-                # Proceder con la eliminación
-                proxy = ProxyCloud.parse(user_info['proxy'])
-                client = MoodleClient(user_info['moodle_user'],
-                                       user_info['moodle_password'],
-                                       user_info['moodle_host'],
-                                       user_info['moodle_repo_id'],
-                                       proxy=proxy)
-                loged = client.login()
-                if loged:
-                    evfiles = client.getEvidences()
-                    
-                    # Registrar cada evidencia individualmente antes de eliminarlas
-                    for ev in evfiles:
-                        evidence_name = ev['name']
-                        files_in_evidence = ev.get('files', [])
-                        parts_count = len(files_in_evidence)
                         
-                        # Calcular tamaño total de la evidencia
-                        total_evidence_size = 0
+                        # Registrar cada archivo individual para estadísticas
                         for f in files_in_evidence:
-                            if 'filesize' in f:
-                                try:
-                                    total_evidence_size += int(f['filesize'])
-                                except:
-                                    pass
-                        
-                        file_size_formatted = format_file_size(total_evidence_size)
-                        
-                        # Registrar eliminación individual
-                        if parts_count == 1:
-                            # Buscar nombre del archivo único
-                            filename = evidence_name
-                            for f in files_in_evidence:
-                                if 'filename' in f:
-                                    filename = f['filename']
-                                    break
-                                elif 'name' in f:
-                                    filename = f['name']
-                                    break
+                            filename = None
+                            if 'filename' in f:
+                                filename = f['filename']
+                            elif 'name' in f:
+                                filename = f['name']
+                            elif 'title' in f:
+                                filename = f['title']
+                            elif 'directurl' in f:
+                                url = f['directurl']
+                                if 'filename=' in url:
+                                    import urllib.parse
+                                    parsed = urllib.parse.urlparse(url)
+                                    params = urllib.parse.parse_qs(parsed.query)
+                                    if 'filename' in params:
+                                        filename = params['filename'][0]
+                                elif '/' in url:
+                                    filename = url.split('/')[-1].split('?')[0]
                             
-                            memory_stats.log_delete(
-                                username=username,
-                                name=filename,
-                                moodle_host=moodle_host,
-                                is_evidence=False,
-                                parts_count=0,
-                                file_size_formatted=file_size_formatted
-                            )
-                        else:
-                            memory_stats.log_delete(
-                                username=username,
-                                name=evidence_name,
-                                moodle_host=moodle_host,
-                                is_evidence=True,
-                                parts_count=parts_count,
-                                file_size_formatted=file_size_formatted
-                            )
+                            if not filename:
+                                filename = f"archivo_{len(all_deleted_files)+1}"
+                            
+                            all_deleted_files.append({
+                                'filename': filename,
+                                'evidence_name': ev['name']
+                            })
                     
                     # Eliminar TODAS las evidencias
                     for item in evfiles:
@@ -1091,25 +963,30 @@ Aún no se ha realizado ninguna acción en el bot.
                     
                     client.logout()
                     
-                    # REGISTRAR ELIMINACIÓN MASIVA
+                    # REGISTRAR ELIMINACIÓN MASIVA - ¡AHORA CUENTA TODOS LOS ARCHIVOS!
                     memory_stats.log_delete_all(
                         username=username, 
                         deleted_evidences=total_evidences, 
-                        deleted_files=total_files,
-                        moodle_host=moodle_host
+                        deleted_files=total_files,  # ¡TODOS los archivos!
+                        moodle_host=user_info['moodle_host']
                     )
                     
-                    # Eliminar confirmación
-                    if username in delete_confirmation:
-                        del delete_confirmation[username]
+                    # También registrar cada archivo individualmente para logs detallados
+                    for file_info in all_deleted_files:
+                        memory_stats.log_delete(
+                            username=username,
+                            filename=file_info['filename'],
+                            evidence_name=file_info['evidence_name'],
+                            moodle_host=user_info['moodle_host']
+                        )
                     
-                    bot.editMessageText(message, f'✅ TODAS las evidencias eliminadas\n📦 {total_evidences} evidencia(s) borrada(s)\n📁 Total archivos: {total_files}')
+                    bot.editMessageText(message, f'🗑️ TODAS las evidencias eliminadas\n📦 {total_evidences} evidencia(s) borrada(s)\n📁 Total archivos: {total_files}')
                     
                 else:
                     bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
-                print(f"Error en /delall_confirm: {e}")
+                print(f"Error en /delall: {e}")
                 
         elif 'http' in msgText:
             url = msgText
@@ -1127,15 +1004,14 @@ Aún no se ha realizado ninguna acción en el bot.
                 
                 response = requests.head(url, allow_redirects=True, timeout=5, headers=headers)
                 file_size = int(response.headers.get('content-length', 0))
-                file_size_mb = file_size / (1024 * 1024)  # Convertir a MB
+                file_size_mb = file_size / (1024 * 1024)
                 
-                # SOLO mostrar mensaje si excede 500MB
-                if file_size_mb > 500:
+                # Si es mayor a 500MB, mostrar mensaje chistoso
+                if file_size_mb > 200:
                     funny_message = get_random_large_file_message()
-                    file_size_gb = file_size_mb / 1024  # Convertir a GB
                     warning_msg = bot.sendMessage(update.message.chat.id, 
                                       f"⚠️ {funny_message}\n\n"
-                                      f"📊 Cojoneee, tú piensas q esto es una nube artificial o q? Para q tú quieres subir {file_size_gb:.2f} GB?\n\n"
+                                      f"📊 Cojoneee, tú piensas q esto es una nube artificial o q? Para q tú quieres subir {file_size_mb:.2f} MB?\n\n"
                                       f"⬇️ Bueno, lo subiré😡")
                     funny_message_sent = warning_msg
                 
@@ -1143,12 +1019,12 @@ Aún no se ha realizado ninguna acción en el bot.
                 # Silenciar cualquier error de verificación
                 pass
             
+            # PROCEDER CON LA DESCARGA
+            ddl(update,bot,message,url,file_name='',thread=thread,jdb=jdb)
+            
             # Eliminar mensaje chistoso después de 8 segundos si existe
             if funny_message_sent:
                 delete_message_after_delay(bot, funny_message_sent.chat.id, funny_message_sent.message_id, 8)
-            
-            # PROCEDER CON LA DESCARGA
-            ddl(update,bot,message,url,file_name='',thread=thread,jdb=jdb)
             
         else:
             bot.editMessageText(message,'➲ No se pudo procesar ✗ ')
