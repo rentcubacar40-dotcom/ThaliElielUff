@@ -61,6 +61,9 @@ PRE_CONFIGURATED_USERS = {
     }
 }
 
+# Diccionario para almacenar mensajes temporales por usuario
+temporal_messages = {}
+
 def get_cuba_time():
     if CUBA_TZ:
         cuba_time = datetime.datetime.now(CUBA_TZ)
@@ -76,7 +79,7 @@ def format_cuba_date(dt=None):
 def format_cuba_datetime(dt=None):
     if dt is None:
         dt = get_cuba_time()
-    return dt.strftime("%d/%m/%y %I:%M %p")
+    return dt.strftime("%d/%m/%y %I:%M %p")  # ← %I para 12 horas, %p para AM/PM
 
 def format_file_size(size_bytes):
     """Formatea bytes a KB, MB o GB automáticamente"""
@@ -109,7 +112,7 @@ class MemoryStats:
         }
         self.user_stats = {}  # username -> {uploads, deletes, total_size, last_activity}
         self.upload_logs = []  # {timestamp, username, filename, file_size_bytes, file_size_formatted, moodle_host}
-        self.delete_logs = []  # {timestamp, username, evidence_name, file_count, moodle_host}
+        self.delete_logs = []  # {timestamp, username, filename, evidence_name, moodle_host, type, parts_count}
     
     def log_upload(self, username, filename, file_size, moodle_host):
         """Registra una subida exitosa"""
@@ -152,8 +155,8 @@ class MemoryStats:
         
         return True
     
-    def log_delete(self, username, evidence_name, file_count, moodle_host):
-        """Registra una eliminación de evidencia"""
+    def log_delete(self, username, filename, evidence_name, moodle_host, parts_count=0):
+        """Registra una eliminación individual"""
         # Actualizar estadísticas globales
         self.stats['total_deletes'] += 1
         
@@ -173,10 +176,11 @@ class MemoryStats:
         log_entry = {
             'timestamp': format_cuba_datetime(),
             'username': username,
+            'filename': filename,
             'evidence_name': evidence_name,
-            'file_count': file_count,
             'moodle_host': moodle_host,
-            'type': 'delete'
+            'type': 'delete',
+            'parts_count': parts_count  # Número de partes si es una evidencia con múltiples archivos
         }
         self.delete_logs.append(log_entry)
         
@@ -187,8 +191,24 @@ class MemoryStats:
         return True
     
     def log_delete_all(self, username, deleted_evidences, deleted_files, moodle_host):
-        """Registra eliminación masiva"""
-        # Registrar como una eliminación masiva
+        """Registra eliminación masiva - CORREGIDO: cuenta todos los archivos"""
+        # Actualizar estadísticas globales - contar CADA ARCHIVO eliminado
+        self.stats['total_deletes'] += deleted_files  # ¡Sumar todos los archivos, no solo 1!
+        
+        # Actualizar estadísticas del usuario
+        if username not in self.user_stats:
+            self.user_stats[username] = {
+                'uploads': 0,
+                'deletes': 0,
+                'total_size': 0,
+                'last_activity': format_cuba_datetime()
+            }
+        
+        # ¡IMPORTANTE! Sumar TODOS los archivos eliminados, no solo 1
+        self.user_stats[username]['deletes'] += deleted_files
+        self.user_stats[username]['last_activity'] = format_cuba_datetime()
+        
+        # Registrar en logs
         log_entry = {
             'timestamp': format_cuba_datetime(),
             'username': username,
@@ -279,54 +299,8 @@ def downloadFile(downloader,filename,currentBits,totalBits,speed,time,args):
             downloader.stop()
         downloadingInfo = infos.createDownloading(filename,totalBits,currentBits,speed,time,tid=thread.id)
         bot.editMessageText(message,downloadingInfo)
-    except Exception as ex: 
-        print(str(ex))
+    except Exception as ex: print(str(ex))
     pass
-
-def download_file_with_progress(bot, file_id, file_path, message, thread):
-    """Descarga un archivo con progreso desde Telegram"""
-    try:
-        # Iniciar descarga
-        total_size = 0
-        downloaded = 0
-        last_update = time.time()
-        
-        # Obtener información del archivo primero
-        file_info = bot.getFile(file_id)
-        total_size = file_info.file_size
-        
-        # Crear callback para progreso
-        def progress_callback(current, total):
-            nonlocal downloaded, last_update
-            downloaded = current
-            # Actualizar cada 0.5 segundos para no saturar
-            current_time = time.time()
-            if current_time - last_update > 0.5 or current == total:
-                speed = (current - downloaded) / (current_time - last_update) if current_time > last_update else 0
-                time_remaining = (total - current) / speed if speed > 0 else 0
-                
-                progress_info = infos.createDownloading(
-                    os.path.basename(file_path),
-                    total, 
-                    current, 
-                    speed, 
-                    time_remaining,
-                    tid=thread.id if thread else 'file'
-                )
-                try:
-                    bot.editMessageText(message, progress_info)
-                except:
-                    pass
-                
-                last_update = current_time
-        
-        # Descargar el archivo
-        bot.download(file_id, file_path, progress=progress_callback)
-        
-        return True
-    except Exception as e:
-        print(f"Error en descarga con progreso: {e}")
-        return False
 
 def uploadFile(filename,currentBits,totalBits,speed,time,args):
     try:
@@ -336,8 +310,7 @@ def uploadFile(filename,currentBits,totalBits,speed,time,args):
         thread = args[3]
         downloadingInfo = infos.createUploading(filename,totalBits,currentBits,speed,time,originalfile)
         bot.editMessageText(message,downloadingInfo)
-    except Exception as ex: 
-        print(str(ex))
+    except Exception as ex: print(str(ex))
     pass
 
 def processUploadFiles(filename,filesize,files,update,bot,message,thread=None,jdb=None):
@@ -545,6 +518,44 @@ def delete_message_after_delay(bot, chat_id, message_id, delay=8):
     thread.daemon = True
     thread.start()
 
+def delete_temporal_messages(bot, chat_id, message_ids, delay=8):
+    """Elimina múltiples mensajes temporales después de un retraso"""
+    def delete():
+        time.sleep(delay)
+        for msg_id in message_ids:
+            try:
+                bot.deleteMessage(chat_id, msg_id)
+            except Exception as e:
+                print(f"Error al eliminar mensaje temporal: {e}")
+    
+    thread = threading.Thread(target=delete)
+    thread.daemon = True
+    thread.start()
+
+def get_user_evidences(update, bot, message, jdb, username=None):
+    """Obtiene las evidencias de un usuario específico o del usuario actual"""
+    try:
+        if username is None:
+            username = update.message.sender.username
+        
+        user_info = jdb.get_user(username)
+        proxy = ProxyCloud.parse(user_info['proxy'])
+        client = MoodleClient(user_info['moodle_user'],
+                               user_info['moodle_password'],
+                               user_info['moodle_host'],
+                               user_info['moodle_repo_id'],
+                               proxy=proxy)
+        loged = client.login()
+        if loged:
+            files = client.getEvidences()
+            client.logout()
+            return files, user_info
+        else:
+            return None, None
+    except Exception as e:
+        print(f"Error obteniendo evidencias de usuario {username}: {e}")
+        return None, None
+
 def onmessage(update,bot:ObigramClient):
     try:
         thread = bot.this_thread
@@ -573,124 +584,9 @@ def onmessage(update,bot:ObigramClient):
             jdb.save()
 
         msgText = ''
-        try: 
-            msgText = update.message.text
-        except: 
-            pass
+        try: msgText = update.message.text
+        except:pass
 
-        # VERIFICAR SI HAY ARCHIVO ADJUNTO
-        has_file = False
-        file_id = None
-        file_name = None
-        file_size = 0
-        
-        try:
-            # Verificar diferentes tipos de archivos
-            if update.message.document:
-                has_file = True
-                file_id = update.message.document.file_id
-                file_name = update.message.document.file_name
-                file_size = update.message.document.file_size
-            elif update.message.video:
-                has_file = True
-                file_id = update.message.video.file_id
-                file_name = f"video_{update.message.video.file_id}.mp4"
-                file_size = update.message.video.file_size
-            elif update.message.audio:
-                has_file = True
-                file_id = update.message.audio.file_id
-                file_name = update.message.audio.file_name or f"audio_{update.message.audio.file_id}.mp3"
-                file_size = update.message.audio.file_size
-            elif update.message.photo:
-                # Para fotos, tomar la de mayor calidad
-                has_file = True
-                photo_sizes = update.message.photo
-                largest_photo = photo_sizes[-1]  # La última es la más grande
-                file_id = largest_photo.file_id
-                file_name = f"photo_{largest_photo.file_id}.jpg"
-                file_size = largest_photo.file_size
-            elif update.message.voice:
-                has_file = True
-                file_id = update.message.voice.file_id
-                file_name = f"voice_{update.message.voice.file_id}.ogg"
-                file_size = update.message.voice.file_size
-            elif update.message.video_note:
-                has_file = True
-                file_id = update.message.video_note.file_id
-                file_name = f"video_note_{update.message.video_note.file_id}.mp4"
-                file_size = update.message.video_note.file_size
-            elif update.message.sticker:
-                has_file = True
-                file_id = update.message.sticker.file_id
-                file_name = f"sticker_{update.message.sticker.file_id}.webp"
-                file_size = update.message.sticker.file_size
-        except Exception as e:
-            print(f"Error detectando archivo adjunto: {e}")
-
-        # MANEJAR ARCHIVOS ADJUNTOS
-        if has_file and file_id:
-            try:
-                message = bot.sendMessage(update.message.chat.id,'📥 Descargando archivo...')
-                thread.store('msg', message)
-                
-                # Crear directorio temporal si no existe
-                if not os.path.exists('temp'):
-                    os.makedirs('temp')
-                
-                # Generar nombre de archivo único
-                timestamp = int(time.time())
-                unique_id = createID()
-                file_path = f'temp/{timestamp}_{unique_id}_{file_name}'
-                
-                # Verificar tamaño (500MB = 500 * 1024 * 1024 bytes)
-                funny_message_sent = None
-                file_size_mb = file_size / (1024 * 1024)
-                
-                # Solo mostrar mensaje si es mayor a 500MB
-                if file_size_mb > 500:
-                    funny_message = get_random_large_file_message()
-                    warning_msg = bot.sendMessage(update.message.chat.id, 
-                                      f"⚠️ {funny_message}\n\n"
-                                      f"📊 Cojoneee, tú piensas q esto es una nube artificial o q? Para q tú quieres subir {file_size_mb:.2f} MB?\n\n"
-                                      f"⬆️ Bueno, lo subiré😡")
-                    funny_message_sent = warning_msg
-                    # Eliminar mensaje después de 8 segundos AUTOMÁTICAMENTE
-                    delete_message_after_delay(bot, warning_msg.chat.id, warning_msg.message_id, 8)
-                
-                # Descargar archivo con progreso
-                success = download_file_with_progress(bot, file_id, file_path, message, thread)
-                
-                if not success or not os.path.exists(file_path):
-                    bot.editMessageText(message, '❌ Error al descargar el archivo')
-                    return
-                
-                # Verificar que el archivo se descargó correctamente
-                actual_size = os.path.getsize(file_path)
-                if actual_size == 0:
-                    bot.editMessageText(message, '❌ Archivo descargado está vacío')
-                    os.unlink(file_path)
-                    return
-                
-                # Procesar el archivo
-                processFile(update, bot, message, file_path, thread=thread, jdb=jdb)
-                
-                # Limpiar archivo temporal
-                try:
-                    os.unlink(file_path)
-                except:
-                    pass
-                    
-            except Exception as e:
-                error_msg = f'❌ Error al procesar el archivo: {str(e)}'
-                print(f"Error procesando archivo: {e}")
-                print(traceback.format_exc())
-                try:
-                    bot.editMessageText(message, error_msg)
-                except:
-                    bot.sendMessage(update.message.chat.id, error_msg)
-            return
-
-        # COMANDO /cancel_
         if '/cancel_' in msgText:
             try:
                 cmd = str(msgText).split('_',2)
@@ -718,14 +614,14 @@ def onmessage(update,bot:ObigramClient):
 
 👤 Usuario: @{username}
 📤 Archivos subidos: {user_stats['uploads']}
-🗑️ Evidencias eliminadas: {user_stats['deletes']}
+🗑️ Archivos eliminados: {user_stats['deletes']}
 💾 Espacio total usado: {total_size_formatted}
 📅 Última actividad: {user_stats['last_activity']}
 🔗 Nube: {user_info['moodle_host']}
 ━━━━━━━━━━━━━━━━━━━
 📈 Resumen:
 • Subiste {user_stats['uploads']} archivo(s)
-• Eliminaste {user_stats['deletes']} evidencia(s)
+• Eliminaste {user_stats['deletes']} archivo(s)
 • Usaste {total_size_formatted} de espacio
                 """
             else:
@@ -734,7 +630,7 @@ def onmessage(update,bot:ObigramClient):
 
 👤 Usuario: @{username}
 📤 Archivos subidos: 0
-🗑️ Evidencias eliminadas: 0
+🗑️ Archivos eliminados: 0
 💾 Espacio total usado: 0 B
 📅 Última actividad: Nunca
 🔗 Nube: {user_info['moodle_host']}
@@ -768,6 +664,7 @@ def onmessage(update,bot:ObigramClient):
 /adm_uploads - Ver últimas subidas
 /adm_deletes - Ver últimas eliminaciones
 /adm_cleardata - Limpiar todos los datos
+/adm_userevidences - Ver evidencias de un usuario específico
 ━━━━━━━━━━━━━━━━━━━
 🕐 Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                     """
@@ -784,6 +681,7 @@ Aún no se ha realizado ninguna acción en el bot.
 /adm_users - Ver estadísticas por usuario
 /adm_uploads - Ver últimas subidas
 /adm_deletes - Ver últimas eliminaciones
+/adm_userevidences - Ver evidencias de un usuario específico
 ━━━━━━━━━━━━━━━━━━━
 🕐 Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                     """
@@ -822,8 +720,8 @@ Aún no se ha realizado ninguna acción en el bot.
                             if log['type'] == 'delete_all':
                                 logs_msg += f"• {log['timestamp']} - @{log['username']}: ELIMINÓ TODO ({log.get('deleted_evidences', 1)} evidencia(s), {log.get('deleted_files', '?')} archivos)\n"
                             else:
-                                file_count_msg = f" ({log.get('file_count', 1)} parte(s))" if log.get('file_count', 1) > 1 else ""
-                                logs_msg += f"• {log['timestamp']} - @{log['username']}: {log['evidence_name']}{file_count_msg}\n"
+                                parts_text = f" ({log.get('parts_count', 0)} partes)" if log.get('parts_count', 0) > 0 else ""
+                                logs_msg += f"• {log['timestamp']} - @{log['username']}: Evidencia eliminada: {log['filename']}{parts_text}\n"
                     
                     if len(logs_msg) > 4000:
                         logs_msg = logs_msg[:4000] + "\n\n⚠️ Logs truncados (demasiados)"
@@ -848,7 +746,7 @@ Aún no se ha realizado ninguna acción en el bot.
                         total_size_formatted = format_file_size(data['total_size'])
                         users_msg += f"👤 @{user}\n"
                         users_msg += f"   📤 Subidas: {data['uploads']}\n"
-                        users_msg += f"   🗑️ Eliminaciones: {data['deletes']} evidencia(s)\n"
+                        users_msg += f"   🗑️ Eliminaciones: {data['deletes']}\n"
                         users_msg += f"   💾 Espacio usado: {total_size_formatted}\n"
                         users_msg += f"   📅 Última actividad: {data['last_activity']}\n\n"
                     
@@ -902,10 +800,11 @@ Aún no se ha realizado ninguna acción en el bot.
                             deletes_msg += f"   ⚠️ ELIMINÓ {log.get('deleted_evidences', 1)} EVIDENCIA(S)\n"
                             deletes_msg += f"   🗑️ Archivos borrados: {log.get('deleted_files', '?')}\n"
                         else:
-                            file_count_msg = f" ({log.get('file_count', 1)} parte(s))" if log.get('file_count', 1) > 1 else ""
-                            deletes_msg += f"{i}. {log['evidence_name']}{file_count_msg}\n"
+                            parts_text = f" ({log.get('parts_count', 0)} partes)" if log.get('parts_count', 0) > 0 else ""
+                            deletes_msg += f"{i}. Evidencia eliminada: {log['evidence_name']}{parts_text}\n"
                             deletes_msg += f"   👤 @{log['username']}\n"
                             deletes_msg += f"   📅 {log['timestamp']}\n"
+                            deletes_msg += f"   📁 Archivo: {log['filename']}\n"
                         
                         deletes_msg += f"   🔗 {log['moodle_host']}\n\n"
                     
@@ -924,6 +823,32 @@ Aún no se ha realizado ninguna acción en el bot.
                     bot.editMessageText(message, f"✅ {result}")
                 except Exception as e:
                     bot.editMessageText(message, f"❌ Error al limpiar datos: {str(e)}")
+                return
+            
+            elif '/adm_userevidences' in msgText:
+                try:
+                    # Verificar si se especificó un usuario
+                    if '_' in msgText:
+                        target_user = msgText.split('_')[2]
+                    else:
+                        bot.editMessageText(message, "❌ Formato incorrecto. Use: /adm_userevidences_usuario")
+                        return
+                    
+                    # Obtener evidencias del usuario específico
+                    evidences, user_info = get_user_evidences(update, bot, message, jdb, target_user)
+                    
+                    if evidences is not None and user_info is not None:
+                        if len(evidences) == 0:
+                            bot.editMessageText(message, f"👤 Usuario: @{target_user}\n📂 No tiene evidencias")
+                        else:
+                            filesInfo = infos.createFilesMsg(evidences)
+                            response_msg = f"👤 Evidencias de: @{target_user}\n🔗 Host: {user_info['moodle_host']}\n\n"
+                            response_msg += filesInfo
+                            bot.editMessageText(message, response_msg)
+                    else:
+                        bot.editMessageText(message, f"❌ No se pudo obtener evidencias de @{target_user}\nVerifique que el usuario exista y tenga configuración válida")
+                except Exception as e:
+                    bot.editMessageText(message, f"❌ Error: {str(e)}")
                 return
 
         # COMANDOS NORMALES
@@ -994,22 +919,56 @@ Aún no se ha realizado ninguna acción en el bot.
                     
                     evfile = evidences[findex]
                     evidence_name = evfile['name']
-                    file_count = len(evfile.get('files', []))
+                    
+                    # OBTENER NOMBRES REALES DE LOS ARCHIVOS
+                    deleted_files = []
+                    if 'files' in evfile:
+                        for f in evfile['files']:
+                            filename = None
+                            if 'filename' in f:
+                                filename = f['filename']
+                            elif 'name' in f:
+                                filename = f['name']
+                            elif 'title' in f:
+                                filename = f['title']
+                            elif 'directurl' in f:
+                                url = f['directurl']
+                                if 'filename=' in url:
+                                    import urllib.parse
+                                    parsed = urllib.parse.urlparse(url)
+                                    params = urllib.parse.parse_qs(parsed.query)
+                                    if 'filename' in params:
+                                        filename = params['filename'][0]
+                                elif '/' in url:
+                                    filename = url.split('/')[-1].split('?')[0]
+                            
+                            if not filename:
+                                filename = f"archivo_{len(deleted_files)+1}"
+                            
+                            deleted_files.append(filename)
+                    
+                    # Contar partes (archivos) en la evidencia
+                    parts_count = len(deleted_files)
                     
                     # Eliminar la evidencia
                     client.deleteEvidence(evfile)
                     client.logout()
                     
-                    # REGISTRAR ELIMINACIÓN DE EVIDENCIA (con número de partes)
-                    memory_stats.log_delete(
-                        username=username,
-                        evidence_name=evidence_name,
-                        file_count=file_count,
-                        moodle_host=user_info['moodle_host']
-                    )
+                    # REGISTRAR CADA ARCHIVO ELIMINADO - MODIFICADO PARA MOSTRAR "EVIDENCIA ELIMINADA"
+                    # Solo registrar una vez la evidencia completa, no cada archivo individual
+                    if parts_count > 0:
+                        # Registrar como "Evidencia eliminada" con número de partes
+                        memory_stats.log_delete(
+                            username=username,
+                            filename=evidence_name,  # Nombre de la evidencia, no del archivo
+                            evidence_name=evidence_name,
+                            moodle_host=user_info['moodle_host'],
+                            parts_count=parts_count  # Agregar conteo de partes
+                        )
                     
-                    if file_count > 0:
-                        bot.editMessageText(message, f'🗑️ Evidencia eliminada: {evidence_name}\n📦 {file_count} parte(s) borrada(s)')
+                    if parts_count > 0:
+                        parts_text = f" ({parts_count} parte{'s' if parts_count > 1 else ''})" if parts_count > 0 else ""
+                        bot.editMessageText(message, f'🗑️ Evidencia eliminada{parts_text}: {evidence_name}')
                     else:
                         bot.editMessageText(message, f'🗑️ Evidencia eliminada: {evidence_name}')
                     
@@ -1040,10 +999,17 @@ Aún no se ha realizado ninguna acción en el bot.
                     total_evidences = len(evfiles)
                     total_files = 0
                     
-                    # Contar archivos totales
+                    # Contar archivos totales y registrar cada evidencia
+                    all_deleted_evidences = []
                     for ev in evfiles:
                         files_in_evidence = ev.get('files', [])
                         total_files += len(files_in_evidence)
+                        
+                        # Guardar información de la evidencia
+                        all_deleted_evidences.append({
+                            'evidence_name': ev['name'],
+                            'parts_count': len(files_in_evidence)
+                        })
                     
                     # Eliminar TODAS las evidencias
                     for item in evfiles:
@@ -1054,15 +1020,25 @@ Aún no se ha realizado ninguna acción en el bot.
                     
                     client.logout()
                     
-                    # REGISTRAR ELIMINACIÓN MASIVA
+                    # REGISTRAR ELIMINACIÓN MASIVA - ¡AHORA CUENTA TODOS LOS ARCHIVOS!
                     memory_stats.log_delete_all(
                         username=username, 
                         deleted_evidences=total_evidences, 
-                        deleted_files=total_files,
+                        deleted_files=total_files,  # ¡TODOS los archivos!
                         moodle_host=user_info['moodle_host']
                     )
                     
-                    bot.editMessageText(message, f'🗑️ TODAS las evidencias eliminadas\n📦 {total_evidences} evidencia(s) borrada(s)\n📁 Total partes: {total_files}')
+                    # También registrar cada evidencia individualmente
+                    for ev_info in all_deleted_evidences:
+                        memory_stats.log_delete(
+                            username=username,
+                            filename=ev_info['evidence_name'],  # Nombre de la evidencia
+                            evidence_name=ev_info['evidence_name'],
+                            moodle_host=user_info['moodle_host'],
+                            parts_count=ev_info['parts_count']  # Número de partes
+                        )
+                    
+                    bot.editMessageText(message, f'🗑️ TODAS las evidencias eliminadas\n📦 {total_evidences} evidencia(s) borrada(s)\n📁 Total archivos: {total_files}')
                     
                 else:
                     bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
@@ -1073,8 +1049,8 @@ Aún no se ha realizado ninguna acción en el bot.
         elif 'http' in msgText:
             url = msgText
             
-            # Verificación SILENCIOSA del tamaño (solo para >500MB)
-            funny_message_sent = None
+            # Verificación SILENCIOSA del tamaño (sin mostrar mensaje al usuario)
+            temporal_message_ids = []
             
             try:
                 import requests
@@ -1086,18 +1062,17 @@ Aún no se ha realizado ninguna acción en el bot.
                 
                 response = requests.head(url, allow_redirects=True, timeout=5, headers=headers)
                 file_size = int(response.headers.get('content-length', 0))
-                file_size_mb = file_size / (1024 * 1024)
+                file_size_mb = file_size / (1024 * 1024)  # Convertir a MB
                 
-                # Solo mostrar mensaje si es mayor a 500MB
-                if file_size_mb > 500:
+                # SOLO mostrar mensaje si excede 500MB (0.5 GB)
+                if file_size_mb > 500:  # 500 MB = 0.5 GB
                     funny_message = get_random_large_file_message()
+                    file_size_gb = file_size_mb / 1024  # Convertir a GB
                     warning_msg = bot.sendMessage(update.message.chat.id, 
                                       f"⚠️ {funny_message}\n\n"
-                                      f"📊 Cojoneee, tú piensas q esto es una nube artificial o q? Para q tú quieres subir {file_size_mb:.2f} MB?\n\n"
+                                      f"📊 Cojoneee, tú piensas q esto es una nube artificial o q? Para q tú quieres subir {file_size_gb:.2f} GB?\n\n"
                                       f"⬇️ Bueno, lo subiré😡")
-                    funny_message_sent = warning_msg
-                    # Eliminar mensaje después de 8 segundos AUTOMÁTICAMENTE
-                    delete_message_after_delay(bot, warning_msg.chat.id, warning_msg.message_id, 8)
+                    temporal_message_ids.append(warning_msg.message_id)
                 
             except Exception as e:
                 # Silenciar cualquier error de verificación
@@ -1105,6 +1080,15 @@ Aún no se ha realizado ninguna acción en el bot.
             
             # PROCEDER CON LA DESCARGA
             ddl(update,bot,message,url,file_name='',thread=thread,jdb=jdb)
+            
+            # Eliminar mensajes temporales después de 8 segundos si existen
+            if temporal_message_ids:
+                # También agregar el mensaje de procesamiento a los temporales
+                temporal_message_ids.append(message.message_id)
+                delete_temporal_messages(bot, update.message.chat.id, temporal_message_ids, 8)
+            else:
+                # Si no hay mensaje chistoso, solo eliminar el mensaje de procesamiento
+                delete_message_after_delay(bot, message.chat.id, message.message_id, 8)
             
         else:
             bot.editMessageText(message,'➲ No se pudo procesar ✗ ')
