@@ -1,4 +1,4 @@
-from pyobigram.utils import sizeof_fmt,get_file_size,createID,nice_time
+Hola, quiero que veas este código mío y harás unos cuantos cambios que te voy a pedir tú no me dirás nada sin que yo te lo pida, pero quisiera preguntarte cuál es el límite de tamaño, el cual hace que salga el mensaje aleatorio y quiero que me expliques por qué el mensaje solamente se borra si se cancela la descarga o se termina de hacer la subida, recuerda no decirme nada más que no te pida. from pyobigram.utils import sizeof_fmt,get_file_size,createID,nice_time
 from pyobigram.client import ObigramClient,inlineQueryResultArticle
 from MoodleClient import MoodleClient
 
@@ -44,17 +44,6 @@ PRE_CONFIGURATED_USERS = {
         "moodle_user": "Kevin.cruz",
         "moodle_password": "Kevin10.",
         "zips": 1023,
-        "uploadtype": "evidence",
-        "proxy": "",
-        "tokenize": 0
-    },
-    "": {
-        "cloudtype": "moodle",
-        "moodle_host": "https://cursos.uo.edu.cu/",
-        "moodle_repo_id": 4,
-        "moodle_user": "eric.serrano",
-        "moodle_password": "Rulebreaker2316",
-        "zips": 99,
         "uploadtype": "evidence",
         "proxy": "",
         "tokenize": 0
@@ -284,18 +273,7 @@ def get_random_large_file_message():
         "Este archivo hace que mi servidor sude bytes 💦",
         "¡Tamaño máximo superado! Necesitaré un café extra para esto ☕",
         "Tu archivo es más grande que mi lista de excusas para no hacer ejercicio 🏃",
-        "Detectado: Archivo XXL. Preparando refuerzos estructurales 🏗️",
-        # NUEVOS 10 MENSAJES CHISTOSOS
-        "¡Vaya! Este archivo es tan grande que necesita pasaporte para viajar 🌍",
-        "Con este peso, hasta la nube digital va a necesitar paraguas ☂️",
-        "¡500MB detectados! ¿Traes la biblioteca de Alejandría en un ZIP? 📚",
-        "Tu archivo tiene más MB que yo tengo neuronas después del café 🧠",
-        "¡Alerta! Archivo de tamaño épico detectado. Activando modo Hulk 💚",
-        "Este archivo es más pesado que mis remordimientos del lunes 🎭",
-        "¡Uy! Con este tamaño hasta internet va a sudar la gota gorda 💧",
-        "¿Seguro que no estás subiendo un elefante en formato MP4? 🐘📹",
-        "Archivo XXL: Mi conexión acaba de pedir aumento de sueldo 💰",
-        "¡500MB! Hasta los píxeles están haciendo dieta en este archivo 🥗"
+        "Detectado: Archivo XXL. Preparando refuerzos estructurales 🏗️"
     ]
     return random.choice(messages)
 
@@ -1028,8 +1006,8 @@ Aún no se ha realizado ninguna acción en el bot.
                 file_size = int(response.headers.get('content-length', 0))
                 file_size_mb = file_size / (1024 * 1024)
                 
-                # Si es mayor a 500MB, mostrar mensaje chistoso (CAMBIADO DE 200 A 500)
-                if file_size_mb > 500:
+                # Si es mayor a 500MB, mostrar mensaje chistoso
+                if file_size_mb > 200:
                     funny_message = get_random_large_file_message()
                     warning_msg = bot.sendMessage(update.message.chat.id, 
                                       f"⚠️ {funny_message}\n\n"
@@ -1065,4 +1043,3 @@ if __name__ == '__main__':
         main()
     except:
         main()
-
