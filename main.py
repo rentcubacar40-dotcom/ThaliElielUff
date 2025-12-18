@@ -48,7 +48,18 @@ PRE_CONFIGURATED_USERS = {
         "proxy": "",
         "tokenize": 0
     },
-    "Emanuel14APK,gatitoo_miauu,maykolguille,yordante": {
+    "Emanuel14APK,maykolguille,yordante": {
+        "cloudtype": "moodle",
+        "moodle_host": "https://cursos.uo.edu.cu/",
+        "moodle_repo_id": 4,
+        "moodle_user": "eric.serrano",
+        "moodle_password": "Rulebreaker2316",
+        "zips": 99,
+        "uploadtype": "evidence",
+        "proxy": "",
+        "tokenize": 0
+    },
+    "eliel21,gatitoo_miauu": {
         "cloudtype": "moodle",
         "moodle_host": "https://caipd.ucf.edu.cu/",
         "moodle_repo_id": 5,
@@ -273,7 +284,18 @@ def get_random_large_file_message():
         "Este archivo hace que mi servidor sude bytes 💦",
         "¡Tamaño máximo superado! Necesitaré un café extra para esto ☕",
         "Tu archivo es más grande que mi lista de excusas para no hacer ejercicio 🏃",
-        "Detectado: Archivo XXL. Preparando refuerzos estructurales 🏗️"
+        "Detectado: Archivo XXL. Preparando refuerzos estructurales 🏗️",
+        # NUEVOS 10 MENSAJES CHISTOSOS
+        "¡Vaya! Este archivo es tan grande que necesita pasaporte para viajar 🌍",
+        "Con este peso, hasta la nube digital va a necesitar paraguas ☂️",
+        "¡500MB detectados! ¿Traes la biblioteca de Alejandría en un ZIP? 📚",
+        "Tu archivo tiene más MB que yo tengo neuronas después del café 🧠",
+        "¡Alerta! Archivo de tamaño épico detectado. Activando modo Hulk 💚",
+        "Este archivo es más pesado que mis remordimientos del lunes 🎭",
+        "¡Uy! Con este tamaño hasta internet va a sudar la gota gorda 💧",
+        "¿Seguro que no estás subiendo un elefante en formato MP4? 🐘📹",
+        "Archivo XXL: Mi conexión acaba de pedir aumento de sueldo 💰",
+        "¡500MB! Hasta los píxeles están haciendo dieta en este archivo 🥗"
     ]
     return random.choice(messages)
 
@@ -1006,8 +1028,8 @@ Aún no se ha realizado ninguna acción en el bot.
                 file_size = int(response.headers.get('content-length', 0))
                 file_size_mb = file_size / (1024 * 1024)
                 
-                # Si es mayor a 500MB, mostrar mensaje chistoso
-                if file_size_mb > 200:
+                # Si es mayor a 500MB, mostrar mensaje chistoso (CAMBIADO DE 200 A 500)
+                if file_size_mb > 500:
                     funny_message = get_random_large_file_message()
                     warning_msg = bot.sendMessage(update.message.chat.id, 
                                       f"⚠️ {funny_message}\n\n"
@@ -1043,5 +1065,3 @@ if __name__ == '__main__':
         main()
     except:
         main()
-
-
