@@ -85,7 +85,7 @@ def createFinishUploading(filename,filesize,split_size,current,count,findex):
     msg+= '⌸ Tamaño Total: ' + str(sizeof_fmt(filesize))+'\n'
     msg+= 'ㄓ Tamaño Partes: ' + str(sizeof_fmt(split_size))+'\n'
     msg+= '𖤹 Partes Subidas: ' + str(current) + '/' + str(count) +'\n\n'
-    msg+= '⎙ Borrar Archivo: ' + '/del_'+str(findex)
+    #msg+= '⎙ Borrar Archivo: ' + '/del_'+str(findex)
     return msg
 
 def createFileMsg(filename,files):
