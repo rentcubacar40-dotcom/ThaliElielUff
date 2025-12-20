@@ -343,7 +343,8 @@ def processUploadFiles(filename,filesize,files,update,bot,message,thread=None,jd
                               user_info['moodle_password'],
                               user_info['moodle_host'],
                               user_info['moodle_repo_id'],
-                              proxy=proxy)
+                              proxy=proxy,
+                              simulate_cuba=True)
         loged = client.login()
         if loged:
             evidences = client.getEvidences()
@@ -420,7 +421,8 @@ def processFile(update,bot,message,file,thread=None,jdb=None):
                                          getUser['moodle_password'],
                                          getUser['moodle_host'],
                                          getUser['moodle_repo_id'],
-                                         proxy=proxy)
+                                         proxy=proxy,
+                                         simulate_cuba=True)
             if moodle_client.login():
                 evidences = moodle_client.getEvidences()
                 
@@ -811,7 +813,9 @@ Aún no se ha realizado ninguna acción en el bot.
              client = MoodleClient(user_info['moodle_user'],
                                    user_info['moodle_password'],
                                    user_info['moodle_host'],
-                                   user_info['moodle_repo_id'],proxy=proxy)
+                                   user_info['moodle_repo_id'],
+                                   proxy=proxy,
+                                   simulate_cuba=True)
              loged = client.login()
              if loged:
                  files = client.getEvidences()
@@ -828,7 +832,9 @@ Aún no se ha realizado ninguna acción en el bot.
                  client = MoodleClient(user_info['moodle_user'],
                                        user_info['moodle_password'],
                                        user_info['moodle_host'],
-                                       user_info['moodle_repo_id'],proxy=proxy)
+                                       user_info['moodle_repo_id'],
+                                       proxy=proxy,
+                                       simulate_cuba=True)
                  loged = client.login()
                  if loged:
                      evidences = client.getEvidences()
@@ -858,7 +864,8 @@ Aún no se ha realizado ninguna acción en el bot.
                                        user_info['moodle_password'],
                                        user_info['moodle_host'],
                                        user_info['moodle_repo_id'],
-                                       proxy=proxy)
+                                       proxy=proxy,
+                                       simulate_cuba=True)
                 loged = client.login()
                 if loged:
                     evidences = client.getEvidences()
@@ -930,7 +937,8 @@ Aún no se ha realizado ninguna acción en el bot.
                                        user_info['moodle_password'],
                                        user_info['moodle_host'],
                                        user_info['moodle_repo_id'],
-                                       proxy=proxy)
+                                       proxy=proxy,
+                                       simulate_cuba=True)
                 loged = client.login()
                 if loged:
                     evfiles = client.getEvidences()
@@ -1065,6 +1073,3 @@ if __name__ == '__main__':
         main()
     except:
         main()
-
-
-
