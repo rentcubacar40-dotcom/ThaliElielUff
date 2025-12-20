@@ -12,3 +12,4 @@ requests_toolbelt
 telethon
 tenacity
 pytz
+fake-useragent
