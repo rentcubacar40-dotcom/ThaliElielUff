@@ -251,38 +251,38 @@ class MemoryStats:
     def clear_all_data(self):
         """Limpia todos los datos"""
         self.reset_stats()
-        return "Todos los datos han sido eliminados"
+        return "✅ Todos los datos han sido eliminados"
 
 memory_stats = MemoryStats()
 
 def get_random_large_file_message():
     """Retorna un mensaje chistoso aleatorio para archivos grandes"""
     messages = [
-        "Uy! Este archivo pesa mas que mis ganas de trabajar los lunes",
-        "Seguro que no estas subiendo toda la temporada de tu serie favorita?",
-        "Archivo detectado: XXL. Mi bandeja de entrada necesita hacer dieta",
-        "500MB alert! Esto es mas grande que mi capacidad de decision en un restaurante",
-        "Tu archivo necesita su propio codigo postal para viajar por internet",
-        "Vaya, con este peso hasta el bot necesita ir al gimnasio",
-        "Archivo XXL detectado! Preparando equipo de escalada para subirlo",
-        "Este archivo es tan grande que necesita su propia habitacion en la nube",
-        "Esto es un archivo o un elefante digital disfrazado?",
-        "Alerta de megabyte! Tu archivo podria tener su propia orbita",
-        "Archivo pesado detectado: activando modo grua industrial",
-        "Este archivo hace que mi servidor sude bytes",
-        "Tamaño maximo superado! Necesitare un cafe extra para esto",
-        "Tu archivo es mas grande que mi lista de excusas para no hacer ejercicio",
-        "Detectado: Archivo XXL. Preparando refuerzos estructurales",
-        "Vaya! Este archivo es tan grande que necesita pasaporte para viajar",
-        "Con este peso, hasta la nube digital va a necesitar paraguas",
-        "500MB detectados! Traes la biblioteca de Alejandria en un ZIP?",
-        "Tu archivo tiene mas MB que yo tengo neuronas despues del cafe",
-        "Alerta! Archivo de tamaño epico detectado. Activando modo Hulk",
-        "Este archivo es mas pesado que mis remordimientos del lunes",
-        "Uy! Con este tamaño hasta internet va a sudar la gota gorda",
-        "Seguro que no estas subiendo un elefante en formato MP4?",
-        "Archivo XXL: Mi conexion acaba de pedir aumento de sueldo",
-        "500MB! Hasta los pixeles estan haciendo dieta en este archivo"
+        "¡Uy! Este archivo pesa más que mis ganas de trabajar los lunes 📦",
+        "¿Seguro que no estás subiendo toda la temporada de tu serie favorita? 🎬",
+        "Archivo detectado: XXL. Mi bandeja de entrada necesita hacer dieta 🍔",
+        "¡500MB alert! Esto es más grande que mi capacidad de decisión en un restaurante 🍕",
+        "Tu archivo necesita su propio código postal para viajar por internet 📮",
+        "Vaya, con este peso hasta el bot necesita ir al gimnasio 💪",
+        "¡Archivo XXL detectado! Preparando equipo de escalada para subirlo 🧗",
+        "Este archivo es tan grande que necesita su propia habitación en la nube ☁️",
+        "¿Esto es un archivo o un elefante digital disfrazado? 🐘",
+        "¡Alerta de megabyte! Tu archivo podría tener su propia órbita 🛰️",
+        "Archivo pesado detectado: activando modo grúa industrial 🏗️",
+        "Este archivo hace que mi servidor sude bytes 💦",
+        "¡Tamaño máximo superado! Necesitaré un café extra para esto ☕",
+        "Tu archivo es más grande que mi lista de excusas para no hacer ejercicio 🏃",
+        "Detectado: Archivo XXL. Preparando refuerzos estructurales 🏗️",
+        "¡Vaya! Este archivo es tan grande que necesita pasaporte para viajar 🌍",
+        "Con este peso, hasta la nube digital va a necesitar paraguas ☂️",
+        "¡500MB detectados! ¿Traes la biblioteca de Alejandría en un ZIP? 📚",
+        "Tu archivo tiene más MB que yo tengo neuronas después del café 🧠",
+        "¡Alerta! Archivo de tamaño épico detectado. Activando modo Hulk 💚",
+        "Este archivo es más pesado que mis remordimientos del lunes 🎭",
+        "¡Uy! Con este tamaño hasta internet va a sudar la gota gorda 💧",
+        "¿Seguro que no estás subiendo un elefante en formato MP4? 🐘📹",
+        "Archivo XXL: Mi conexión acaba de pedir aumento de sueldo 💰",
+        "¡500MB! Hasta los píxeles están haciendo dieta en este archivo 🥗"
     ]
     return random.choice(messages)
 
@@ -320,7 +320,7 @@ def uploadFile(filename,currentBits,totalBits,speed,time,args):
 
 def processUploadFiles(filename,filesize,files,update,bot,message,thread=None,jdb=None):
     try:
-        bot.editMessageText(message,'Preparando Para Subir')
+        bot.editMessageText(message,'⬆️ Preparando Para Subir ☁ ●●○')
         evidence = None
         fileid = None
         user_info = jdb.get_user(update.message.sender.username)
@@ -370,10 +370,10 @@ def processUploadFiles(filename,filesize,files,update,bot,message,thread=None,jd
             except:pass
             return draftlist
         else:
-            bot.editMessageText(message,'Error En La Pagina')
+            bot.editMessageText(message,'➥ Error En La Página ✗')
             return None
     except Exception as ex:
-        bot.editMessageText(message,'Error ' + str(ex))
+        bot.editMessageText(message,'➥ Error ✗\n' + str(ex))
         return None
 
 def processFile(update,bot,message,file,thread=None,jdb=None):
@@ -441,7 +441,7 @@ def processFile(update,bot,message,file,thread=None,jdb=None):
                 
                 findex = evidence_index if evidence_index != -1 else len(evidences) - 1
         except Exception as e:
-            print(f"Error obteniendo indice de evidencia: {e}")
+            print(f"Error obteniendo índice de evidencia: {e}")
             findex = 0
         
         bot.deleteMessage(message.chat.id,message.message_id)
@@ -461,7 +461,7 @@ def processFile(update,bot,message,file,thread=None,jdb=None):
             txtname = str(file).split('/')[-1].split('.')[0] + '.txt'
             sendTxt(txtname,files,update,bot)
     else:
-        bot.editMessageText(message,'Error en la pagina')
+        bot.editMessageText(message,'➥ Error en la página ✗')
 
 def ddl(update,bot,message,url,file_name='',thread=None,jdb=None):
     downloader = Downloader()
@@ -471,9 +471,9 @@ def ddl(update,bot,message,url,file_name='',thread=None,jdb=None):
             processFile(update,bot,message,file,jdb=jdb)
         else:
             try:
-                bot.editMessageText(message,'Error en la descarga')
+                bot.editMessageText(message,'➥ Error en la descarga ✗')
             except:
-                bot.editMessageText(message,'Error en la descarga')
+                bot.editMessageText(message,'➥ Error en la descarga ✗')
 
 def sendTxt(name,files,update,bot):
     txt = open(name,'w')
@@ -517,7 +517,7 @@ def initialize_database(jdb):
         jdb.save()
 
 def delete_message_after_delay(bot, chat_id, message_id, delay=8):
-    """Elimina un mensaje despues de un retraso especifico"""
+    """Elimina un mensaje después de un retraso específico"""
     def delete():
         time.sleep(delay)
         try:
@@ -541,7 +541,7 @@ def onmessage(update,bot:ObigramClient):
         expanded_users = expand_user_groups()
         
         if username not in expanded_users:
-            bot.sendMessage(update.message.chat.id,'No tienes acceso a este bot')
+            bot.sendMessage(update.message.chat.id,'➲ No tienes acceso a este bot ✗')
             return
         
         initialize_database(jdb)
@@ -568,12 +568,12 @@ def onmessage(update,bot:ObigramClient):
                 msg = tcancel.getStore('msg')
                 tcancel.store('stop',True)
                 time.sleep(3)
-                bot.editMessageText(msg,'Tarea Cancelada')
+                bot.editMessageText(msg,'➲ Tarea Cancelada ✗ ')
             except Exception as ex:
                 print(str(ex))
             return
 
-        message = bot.sendMessage(update.message.chat.id,'Procesando')
+        message = bot.sendMessage(update.message.chat.id,'➲ Procesando ✪ ●●○')
         thread.store('msg',message)
 
         if '/mystats' in msgText:
@@ -582,32 +582,32 @@ def onmessage(update,bot:ObigramClient):
                 total_size_formatted = format_file_size(user_stats['total_size'])
                 
                 stats_msg = f"""
-TUS ESTADISTICAS
+📊 TUS ESTADÍSTICAS
 
-Usuario: @{username}
-Archivos subidos: {user_stats['uploads']}
-Archivos eliminados: {user_stats['deletes']}
-Espacio total usado: {total_size_formatted}
-Ultima actividad: {user_stats['last_activity']}
-Nube: {user_info['moodle_host']}
+👤 Usuario: @{username}
+📤 Archivos subidos: {user_stats['uploads']}
+🗑️ Archivos eliminados: {user_stats['deletes']}
+💾 Espacio total usado: {total_size_formatted}
+📅 Última actividad: {user_stats['last_activity']}
+🔗 Nube: {user_info['moodle_host']}
 ━━━━━━━━━━━━━━━━━━━
-Resumen:
+📈 Resumen:
 • Subiste {user_stats['uploads']} archivo(s)
 • Eliminaste {user_stats['deletes']} archivo(s)
 • Usaste {total_size_formatted} de espacio
                 """
             else:
                 stats_msg = f"""
-TUS ESTADISTICAS
+📊 TUS ESTADÍSTICAS
 
-Usuario: @{username}
-Archivos subidos: 0
-Archivos eliminados: 0
-Espacio total usado: 0 B
-Ultima actividad: Nunca
-Nube: {user_info['moodle_host']}
+👤 Usuario: @{username}
+📤 Archivos subidos: 0
+🗑️ Archivos eliminados: 0
+💾 Espacio total usado: 0 B
+📅 Última actividad: Nunca
+🔗 Nube: {user_info['moodle_host']}
 ━━━━━━━━━━━━━━━━━━━
-Aun no has realizado ninguna accion
+ℹ️ Aún no has realizado ninguna acción
                 """
             
             bot.editMessageText(message, stats_msg)
@@ -621,38 +621,38 @@ Aun no has realizado ninguna accion
                 
                 if memory_stats.has_any_data():
                     admin_msg = f"""
-PANEL DE ADMINISTRADOR
-{current_date}
+👑 PANEL DE ADMINISTRADOR
+📅 {current_date}
 ━━━━━━━━━━━━━━━━━━━
-ESTADISTICAS GLOBALES:
+📊 ESTADÍSTICAS GLOBALES:
 • Subidas totales: {stats['total_uploads']}
 • Eliminaciones totales: {stats['total_deletes']}
 • Espacio total subido: {total_size_formatted}
 
-COMANDOS DISPONIBLES:
-/adm_logs - Ver ultimos logs
-/adm_users - Ver estadisticas por usuario
-/adm_uploads - Ver ultimas subidas
-/adm_deletes - Ver ultimas eliminaciones
+🔧 COMANDOS DISPONIBLES:
+/adm_logs - Ver últimos logs
+/adm_users - Ver estadísticas por usuario
+/adm_uploads - Ver últimas subidas
+/adm_deletes - Ver últimas eliminaciones
 /adm_cleardata - Limpiar todos los datos
 ━━━━━━━━━━━━━━━━━━━
-Hora Cuba: {format_cuba_datetime().split(' ')[1]}
+🕐 Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                     """
                 else:
                     admin_msg = f"""
-PANEL DE ADMINISTRADOR
-{current_date}
+👑 PANEL DE ADMINISTRADOR
+📅 {current_date}
 ━━━━━━━━━━━━━━━━━━━
-NO HAY DATOS REGISTRADOS
-Aun no se ha realizado ninguna accion en el bot.
+⚠️ NO HAY DATOS REGISTRADOS
+Aún no se ha realizado ninguna acción en el bot.
 
-COMANDOS DISPONIBLES:
-/adm_logs - Ver ultimos logs
-/adm_users - Ver estadisticas por usuario
-/adm_uploads - Ver ultimas subidas
-/adm_deletes - Ver ultimas eliminaciones
+🔧 COMANDOS DISPONIBLES:
+/adm_logs - Ver últimos logs
+/adm_users - Ver estadísticas por usuario
+/adm_uploads - Ver últimas subidas
+/adm_deletes - Ver últimas eliminaciones
 ━━━━━━━━━━━━━━━━━━━
-Hora Cuba: {format_cuba_datetime().split(' ')[1]}
+🕐 Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                     """
                 
                 bot.editMessageText(message, admin_msg)
@@ -661,7 +661,7 @@ Hora Cuba: {format_cuba_datetime().split(' ')[1]}
             elif '/adm_logs' in msgText:
                 try:
                     if not memory_stats.has_any_data():
-                        bot.editMessageText(message, "No hay datos registrados")
+                        bot.editMessageText(message, "⚠️ No hay datos registrados\nAún no se ha realizado ninguna acción en el bot.")
                         return
                     
                     limit = 20
@@ -673,127 +673,127 @@ Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                     uploads = memory_stats.get_recent_uploads(limit)
                     deletes = memory_stats.get_recent_deletes(limit)
                     
-                    logs_msg = f"ULTIMOS LOGS\n"
-                    logs_msg += f"{format_cuba_date()}\n"
+                    logs_msg = f"📋 ÚLTIMOS LOGS\n"
+                    logs_msg += f"📅 {format_cuba_date()}\n"
                     logs_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     if uploads:
-                        logs_msg += "ULTIMAS SUBIDAS:\n"
+                        logs_msg += "⬆️ ÚLTIMAS SUBIDAS:\n"
                         for log in uploads:
                             logs_msg += f"• {log['timestamp']} - @{log['username']}: {log['filename']} ({log['file_size_formatted']})\n"
                         logs_msg += "\n"
                     
                     if deletes:
-                        logs_msg += "ULTIMAS ELIMINACIONES:\n"
+                        logs_msg += "🗑️ ÚLTIMAS ELIMINACIONES:\n"
                         for log in deletes:
                             if log['type'] == 'delete_all':
-                                logs_msg += f"• {log['timestamp']} - @{log['username']}: ELIMINO TODO ({log.get('deleted_evidences', 1)} evidencia(s), {log.get('deleted_files', '?')} archivos)\n"
+                                logs_msg += f"• {log['timestamp']} - @{log['username']}: ELIMINÓ TODO ({log.get('deleted_evidences', 1)} evidencia(s), {log.get('deleted_files', '?')} archivos)\n"
                             else:
                                 logs_msg += f"• {log['timestamp']} - @{log['username']}: {log['filename']} (de: {log['evidence_name']})\n"
                     
                     if len(logs_msg) > 4000:
-                        logs_msg = logs_msg[:4000] + "\n\nLogs truncados (demasiados)"
+                        logs_msg = logs_msg[:4000] + "\n\n⚠️ Logs truncados (demasiados)"
                     
                     bot.editMessageText(message, logs_msg)
                 except Exception as e:
-                    bot.editMessageText(message, f"Error al obtener logs: {str(e)}")
+                    bot.editMessageText(message, f"❌ Error al obtener logs: {str(e)}")
                 return
             
             elif '/adm_users' in msgText:
                 try:
                     users = memory_stats.get_all_users()
                     if not users:
-                        bot.editMessageText(message, "No hay usuarios registrados")
+                        bot.editMessageText(message, "⚠️ No hay usuarios registrados\nAún no se ha completado ninguna acción exitosa.")
                         return
                     
-                    users_msg = f"ESTADISTICAS POR USUARIO\n"
-                    users_msg += f"{format_cuba_date()}\n"
+                    users_msg = f"👥 ESTADÍSTICAS POR USUARIO\n"
+                    users_msg += f"📅 {format_cuba_date()}\n"
                     users_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     for user, data in sorted(users.items(), key=lambda x: x[1]['uploads'], reverse=True):
                         total_size_formatted = format_file_size(data['total_size'])
-                        users_msg += f"@{user}\n"
-                        users_msg += f"   Subidas: {data['uploads']}\n"
-                        users_msg += f"   Eliminaciones: {data['deletes']}\n"
-                        users_msg += f"   Espacio usado: {total_size_formatted}\n"
-                        users_msg += f"   Ultima actividad: {data['last_activity']}\n\n"
+                        users_msg += f"👤 @{user}\n"
+                        users_msg += f"   📤 Subidas: {data['uploads']}\n"
+                        users_msg += f"   🗑️ Eliminaciones: {data['deletes']}\n"
+                        users_msg += f"   💾 Espacio usado: {total_size_formatted}\n"
+                        users_msg += f"   📅 Última actividad: {data['last_activity']}\n\n"
                     
                     if len(users_msg) > 4000:
-                        users_msg = users_msg[:4000] + "\n\nLista truncada (demasiados usuarios)"
+                        users_msg = users_msg[:4000] + "\n\n⚠️ Lista truncada (demasiados usuarios)"
                     
                     bot.editMessageText(message, users_msg)
                 except Exception as e:
-                    bot.editMessageText(message, f"Error al obtener usuarios: {str(e)}")
+                    bot.editMessageText(message, f"❌ Error al obtener usuarios: {str(e)}")
                 return
             
             elif '/adm_uploads' in msgText:
                 try:
                     uploads = memory_stats.get_recent_uploads(15)
                     if not uploads:
-                        bot.editMessageText(message, "No hay subidas registradas")
+                        bot.editMessageText(message, "⚠️ No hay subidas registradas\nAún no se ha completado ninguna subida exitosa.")
                         return
                     
-                    uploads_msg = f"ULTIMAS SUBIDAS\n"
-                    uploads_msg += f"{format_cuba_date()}\n"
+                    uploads_msg = f"📤 ÚLTIMAS SUBIDAS\n"
+                    uploads_msg += f"📅 {format_cuba_date()}\n"
                     uploads_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     for i, log in enumerate(uploads, 1):
                         uploads_msg += f"{i}. {log['filename']}\n"
-                        uploads_msg += f"   @{log['username']}\n"
-                        uploads_msg += f"   {log['timestamp']}\n"
-                        uploads_msg += f"   {log['file_size_formatted']}\n"
-                        uploads_msg += f"   {log['moodle_host']}\n\n"
+                        uploads_msg += f"   👤 @{log['username']}\n"
+                        uploads_msg += f"   📅 {log['timestamp']}\n"
+                        uploads_msg += f"   📏 {log['file_size_formatted']}\n"
+                        uploads_msg += f"   🔗 {log['moodle_host']}\n\n"
                     
                     bot.editMessageText(message, uploads_msg)
                 except Exception as e:
-                    bot.editMessageText(message, f"Error al obtener subidas: {str(e)}")
+                    bot.editMessageText(message, f"❌ Error al obtener subidas: {str(e)}")
                 return
             
             elif '/adm_deletes' in msgText:
                 try:
                     deletes = memory_stats.get_recent_deletes(15)
                     if not deletes:
-                        bot.editMessageText(message, "No hay eliminaciones registradas")
+                        bot.editMessageText(message, "⚠️ No hay eliminaciones registradas\nAún no se ha completado ninguna eliminación exitosa.")
                         return
                     
-                    deletes_msg = f"ULTIMAS ELIMINACIONES\n"
-                    deletes_msg += f"{format_cuba_date()}\n"
+                    deletes_msg = f"🗑️ ÚLTIMAS ELIMINACIONES\n"
+                    deletes_msg += f"📅 {format_cuba_date()}\n"
                     deletes_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     for i, log in enumerate(deletes, 1):
                         if log['type'] == 'delete_all':
-                            deletes_msg += f"{i}. ELIMINACION MASIVA\n"
-                            deletes_msg += f"   @{log['username']}\n"
-                            deletes_msg += f"   {log['timestamp']}\n"
-                            deletes_msg += f"   ELIMINO {log.get('deleted_evidences', 1)} EVIDENCIA(S)\n"
-                            deletes_msg += f"   Archivos borrados: {log.get('deleted_files', '?')}\n"
+                            deletes_msg += f"{i}. ELIMINACIÓN MASIVA\n"
+                            deletes_msg += f"   👤 @{log['username']}\n"
+                            deletes_msg += f"   📅 {log['timestamp']}\n"
+                            deletes_msg += f"   ⚠️ ELIMINÓ {log.get('deleted_evidences', 1)} EVIDENCIA(S)\n"
+                            deletes_msg += f"   🗑️ Archivos borrados: {log.get('deleted_files', '?')}\n"
                         else:
                             deletes_msg += f"{i}. {log['filename']}\n"
-                            deletes_msg += f"   @{log['username']}\n"
-                            deletes_msg += f"   {log['timestamp']}\n"
-                            deletes_msg += f"   Evidencia: {log['evidence_name']}\n"
+                            deletes_msg += f"   👤 @{log['username']}\n"
+                            deletes_msg += f"   📅 {log['timestamp']}\n"
+                            deletes_msg += f"   📁 Evidencia: {log['evidence_name']}\n"
                         
-                        deletes_msg += f"   {log['moodle_host']}\n\n"
+                        deletes_msg += f"   🔗 {log['moodle_host']}\n\n"
                     
                     bot.editMessageText(message, deletes_msg)
                 except Exception as e:
-                    bot.editMessageText(message, f"Error al obtener eliminaciones: {str(e)}")
+                    bot.editMessageText(message, f"❌ Error al obtener eliminaciones: {str(e)}")
                 return
             
             elif '/adm_cleardata' in msgText:
                 try:
                     if not memory_stats.has_any_data():
-                        bot.editMessageText(message, "No hay datos para limpiar")
+                        bot.editMessageText(message, "⚠️ No hay datos para limpiar\nLa memoria está vacía.")
                         return
                     
                     result = memory_stats.clear_all_data()
-                    bot.editMessageText(message, f"{result}")
+                    bot.editMessageText(message, f"✅ {result}")
                 except Exception as e:
-                    bot.editMessageText(message, f"Error al limpiar datos: {str(e)}")
+                    bot.editMessageText(message, f"❌ Error al limpiar datos: {str(e)}")
                 return
 
         if '/start' in msgText:
-            start_msg = f'Usuario: @{username}\nNube: Moodle\nEvidence: Activado\nHost: {user_info["moodle_host"]}\nFileToLink: @fileeliellinkBot'
+            start_msg = f'👤 Usuario: @{username}\n☁️ Nube: Moodle\n📁 Evidence: Activado\n🔗 Host: {user_info["moodle_host"]}\n🖇️FileToLink: @fileeliellinkBot'
             bot.editMessageText(message,start_msg)
             
         elif '/files' == msgText:
@@ -820,10 +820,10 @@ Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                         })
                 
                 if len(visible_list) > 0:
-                    files_msg = "TUS EVIDENCIAS:\n\n"
+                    files_msg = "📁 TUS EVIDENCIAS:\n\n"
                     
                     for idx, item in enumerate(visible_list):
-                        files_msg += f"{item['name']} ({item['file_count']})\n"
+                        files_msg += f"⎙ {item['name']} ({item['file_count']})\n"
                         files_msg += f"   /txt_{idx} /del_{idx}\n\n"
                     
                     files_msg += f"━━━━━━━━━━━━━━━━━━━\n"
@@ -831,10 +831,10 @@ Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                     
                     bot.editMessageText(message, files_msg)
                 else:
-                    bot.editMessageText(message,'No hay evidencias disponibles')
+                    bot.editMessageText(message,'📭 No hay evidencias disponibles')
                 client.logout()
             else:
-                bot.editMessageText(message,'Error y Causas\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
+                bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
                 
         elif '/txt_' in msgText:
             try:
@@ -860,7 +860,7 @@ Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                             })
                     
                     if findex < 0 or findex >= len(visible_list):
-                        bot.editMessageText(message, 'Indice invalido. Use /files para ver la lista.')
+                        bot.editMessageText(message, '❌ Índice inválido. Use /files para ver la lista.')
                         client.logout()
                         return
                     
@@ -872,13 +872,13 @@ Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                     sendTxt(txtname, evindex['files'], update, bot)
                     
                     client.logout()
-                    bot.editMessageText(message,'TXT Aqui')
+                    bot.editMessageText(message,'📄 TXT Aquí')
                 else:
-                    bot.editMessageText(message,'Error y Causas\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
+                    bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
             except ValueError:
-                bot.editMessageText(message, 'Formato incorrecto. Use: /txt_0 (donde 0 es el numero de la evidencia)')
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /txt_0 (donde 0 es el número de la evidencia)')
             except Exception as e:
-                bot.editMessageText(message, f'Error: {str(e)}')
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
                 print(f"Error en /txt_: {e}")
              
         elif '/del_' in msgText:
@@ -906,7 +906,7 @@ Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                             })
                     
                     if findex < 0 or findex >= len(visible_list):
-                        bot.editMessageText(message, 'Indice invalido. Use /files para ver la lista.')
+                        bot.editMessageText(message, '❌ Índice inválido. Use /files para ver la lista.')
                         client.logout()
                         return
                     
@@ -937,30 +937,30 @@ Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                         moodle_host=user_info['moodle_host']
                     )
                     
-                    confirmation_msg = f"Evidencia eliminada: {evidence_clean_name}\n"
-                    confirmation_msg += f"Archivos borrados: {file_count}\n"
+                    confirmation_msg = f"🗑️ Evidencia eliminada: {evidence_clean_name}\n"
+                    confirmation_msg += f"📁 Archivos borrados: {file_count}\n"
                     confirmation_msg += f"━━━━━━━━━━━━━━━━━━━\n"
                     
                     if len(updated_visible_list) > 0:
-                        confirmation_msg += f"Tus evidencias actualizadas:\n\n"
+                        confirmation_msg += f"📋 Tus evidencias actualizadas:\n\n"
                         
                         for idx, item in enumerate(updated_visible_list):
                             clean_name = item['clean_name']
                             item_file_count = len(item['original']['files']) if 'files' in item['original'] else 0
-                            confirmation_msg += f"{clean_name} ({item_file_count})\n"
+                            confirmation_msg += f"⎙ {clean_name} ({item_file_count})\n"
                             confirmation_msg += f"   /txt_{idx} /del_{idx}\n\n"
                         
                         bot.editMessageText(message, confirmation_msg)
                     else:
-                        confirmation_msg += f"No hay evidencias disponibles"
+                        confirmation_msg += f"📭 No hay evidencias disponibles"
                         bot.editMessageText(message, confirmation_msg)
                     
                 else:
-                    bot.editMessageText(message,'Error y Causas\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
+                    bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
             except ValueError:
-                bot.editMessageText(message, 'Formato incorrecto. Use: /del_0 (donde 0 es el numero de la evidencia)')
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /del_0 (donde 0 es el número de la evidencia)')
             except Exception as e:
-                bot.editMessageText(message, f'Error: {str(e)}')
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
                 print(f"Error en /del_: {e}")
                 
         elif '/delall' in msgText:
@@ -982,7 +982,7 @@ Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                             user_evidences.append(ev)
                     
                     if not user_evidences:
-                        bot.editMessageText(message, 'No hay evidencias disponibles')
+                        bot.editMessageText(message, '📭 No hay evidencias disponibles')
                         client.logout()
                         return
                     
@@ -1008,20 +1008,20 @@ Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                         moodle_host=user_info['moodle_host']
                     )
                     
-                    deletion_msg = f"ELIMINACION MASIVA COMPLETADA\n"
-                    deletion_msg += f"Resumen:\n"
+                    deletion_msg = f"🗑️ ELIMINACIÓN MASIVA COMPLETADA\n"
+                    deletion_msg += f"📊 Resumen:\n"
                     deletion_msg += f"   • Evidencias eliminadas: {total_evidences}\n"
                     deletion_msg += f"   • Archivos borrados: {total_files}\n"
                     deletion_msg += f"\n━━━━━━━━━━━━━━━━━━━\n"
-                    deletion_msg += f"Todas tus evidencias han sido eliminadas\n"
-                    deletion_msg += f"No hay evidencias disponibles"
+                    deletion_msg += f"✅ ¡Todas tus evidencias han sido eliminadas!\n"
+                    deletion_msg += f"📭 No hay evidencias disponibles"
                     
                     bot.editMessageText(message, deletion_msg)
                     
                 else:
-                    bot.editMessageText(message,'Error y Causas\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
+                    bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
             except Exception as e:
-                bot.editMessageText(message, f'Error: {str(e)}')
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
                 print(f"Error en /delall: {e}")
                 
         elif 'http' in msgText:
@@ -1044,9 +1044,9 @@ Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                 if file_size_mb > 500:
                     funny_message = get_random_large_file_message()
                     warning_msg = bot.sendMessage(update.message.chat.id, 
-                                      f"{funny_message}\n\n"
-                                      f"Cojoneee, tu piensas q esto es una nube artificial o q? Para q tu quieres subir {file_size_mb:.2f} MB?\n\n"
-                                      f"Bueno, lo subire")
+                                      f"⚠️ {funny_message}\n\n"
+                                      f"❌ Cojoneee, tú piensas q esto es una nube artificial o q? Para q tú quieres subir {file_size_mb:.2f} MB?\n\n"
+                                      f"⬆️ Bueno, lo subiré😡")
                     funny_message_sent = warning_msg
                 
             except Exception as e:
@@ -1058,7 +1058,7 @@ Hora Cuba: {format_cuba_datetime().split(' ')[1]}
                 delete_message_after_delay(bot, funny_message_sent.chat.id, funny_message_sent.message_id, 8)
             
         else:
-            bot.editMessageText(message,'No se pudo procesar ')
+            bot.editMessageText(message,'➲ No se pudo procesar ✗ ')
             
     except Exception as ex:
         print(f"Error general en onmessage: {str(ex)}")
