@@ -390,7 +390,7 @@ def processFile(update,bot,message,file,thread=None,jdb=None):
         bot.editMessageText(message,compresingInfo)
         zipname = str(file).split('.')[0] + createID()
         mult_file = zipfile.MultiFile(zipname,max_file_size)
-        zip = zipfile.ZipFile(mult_file,  mode='w', compression=zipfile.ZIP_DEFLATED)
+        zip = zipfile.ZipFile(mult_file,  mode='w', compression=zipfile.ZIP_DEFLated)
         zip.write(file)
         zip.close()
         mult_file.close()
@@ -723,7 +723,7 @@ class AdminEvidenceManager:
                     'evidence': evidence
                 })
         
-        self.last_update = get_cuba_time()
+        self.last_update = datetime.datetime.now()  # Sin zona horaria para evitar errores
         return len(self.current_list)
     
     def get_evidence(self, cloud_idx, evid_idx):
@@ -846,13 +846,10 @@ def onmessage(update,bot:ObigramClient):
 
 👤 Usuario: @{username}
 🔧 Rol: Administrador
-📅 Fecha: {format_cuba_date()}
-🕐 Hora Cuba: {format_cuba_datetime().split(' ')[1]}
 
 ⚠️ NOTA IMPORTANTE:
 • Tienes acceso de administrador a TODAS las nubes
 • Puedes gestionar evidencias de todos los usuarios
-• Los comandos de admin empiezan con /adm_
 
 📊 NUBES CONFIGURADAS: {len(PRE_CONFIGURATED_USERS)}
 
@@ -883,8 +880,6 @@ def onmessage(update,bot:ObigramClient):
 /mystats - Ver tus estadísticas
 
 🔗 FileToLink: @fileeliellinkBot
-━━━━━━━━━━━━━━━━━━━
-🕐 Actual: {format_cuba_datetime()}
                 """
             else:
                 # Mensaje para usuario regular
@@ -896,8 +891,6 @@ def onmessage(update,bot:ObigramClient):
 📁 Evidence: Activado
 🔗 Host: {user_info["moodle_host"]}
 👤 Cuenta: {user_info["moodle_user"]}
-📅 Fecha: {format_cuba_date()}
-🕐 Hora Cuba: {format_cuba_datetime().split(' ')[1]}
 
 🔧 TUS COMANDOS:
 /start - Ver esta información
@@ -908,8 +901,6 @@ def onmessage(update,bot:ObigramClient):
 /mystats - Ver tus estadísticas
 
 🔗 FileToLink: @fileeliellinkBot
-━━━━━━━━━━━━━━━━━━━
-🕐 Actual: {format_cuba_datetime()}
                 """
             
             bot.editMessageText(message, start_msg)
@@ -922,12 +913,11 @@ def onmessage(update,bot:ObigramClient):
             stats = memory_stats.get_all_stats()
             total_size_formatted = format_file_size(stats['total_size_uploaded'])
             current_date = format_cuba_date()
-            current_time = format_cuba_datetime().split(' ')[1]
             
             if memory_stats.has_any_data():
                 admin_msg = f"""
 👑 PANEL DE ADMINISTRADOR
-📅 {current_date} | 🕐 {current_time}
+📅 {current_date}
 ━━━━━━━━━━━━━━━━━━━
 📊 ESTADÍSTICAS GLOBALES:
 • Subidas totales: {stats['total_uploads']}
@@ -959,7 +949,7 @@ def onmessage(update,bot:ObigramClient):
             else:
                 admin_msg = f"""
 👑 PANEL DE ADMINISTRADOR
-📅 {current_date} | 🕐 {current_time}
+📅 {current_date}
 ━━━━━━━━━━━━━━━━━━━
 ⚠️ NO HAY DATOS REGISTRADOS
 Aún no se ha realizado ninguna acción en el bot.
@@ -997,9 +987,12 @@ Aún no se ha realizado ninguna acción en el bot.
                 if admin_evidence_manager.last_update is None:
                     refresh_needed = True
                 else:
-                    time_diff = datetime.datetime.now() - admin_evidence_manager.last_update
-                    if time_diff.total_seconds() > 300:  # 5 minutos
-                        refresh_needed = True
+                    # USAR datetime.now() simple para evitar error de zonas horarias
+                    now = datetime.datetime.now()
+                    if admin_evidence_manager.last_update:
+                        time_diff = now - admin_evidence_manager.last_update
+                        if time_diff.total_seconds() > 300:  # 5 minutos
+                            refresh_needed = True
                 
                 if refresh_needed or '_refresh' in msgText:
                     bot.editMessageText(message, '🔄 Actualizando lista de nubes...')
@@ -1020,8 +1013,6 @@ Aún no se ha realizado ninguna acción en el bot.
                 
                 menu_msg = f"""
 👑 GESTIÓN DE TODAS LAS NUBES
-📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
-🔄 Actualizado: {admin_evidence_manager.last_update.strftime('%H:%M') if admin_evidence_manager.last_update else 'Nunca'}
 ━━━━━━━━━━━━━━━━━━━
 
 📊 RESUMEN GENERAL:
@@ -1089,7 +1080,6 @@ Aún no se ha realizado ninguna acción en el bot.
 📋 EVIDENCIAS DE LA NUBE
 ☁️ {short_name}
 👥 Usuarios: {users}
-📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
 ━━━━━━━━━━━━━━━━━━━
 
 """
@@ -1130,9 +1120,7 @@ Aún no se ha realizado ninguna acción en el bot.
 📊 RESUMEN:
 • Evidencias: {len(evidences)}
 • Archivos: {sum(e['files_count'] for e in evidences)}
-• Última actualización: {admin_evidence_manager.last_update.strftime('%H:%M') if admin_evidence_manager.last_update else 'Nunca'}
 ━━━━━━━━━━━━━━━━━━━
-🕐 Hora Cuba: {format_cuba_datetime()}
                 """
                 
                 bot.editMessageText(message, list_msg)
@@ -1173,7 +1161,6 @@ Aún no se ha realizado ninguna acción en el bot.
                     
                     show_msg = f"""
 👁️ DETALLES DE EVIDENCIA
-📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
 ━━━━━━━━━━━━━━━━━━━
 
 📝 Nombre: {clean_name}
@@ -1189,9 +1176,7 @@ Aún no se ha realizado ninguna acción en el bot.
 📊 ESTADÍSTICAS:
 • Nube índice: {cloud_idx}
 • Evidencia índice: {evid_idx}
-• URL completa: {cloud_name}
 ━━━━━━━━━━━━━━━━━━━
-🕐 Hora Cuba: {format_cuba_datetime()}
                     """
                     
                     bot.editMessageText(message, show_msg)
@@ -1290,7 +1275,6 @@ Aún no se ha realizado ninguna acción en el bot.
                     
                     confirm_msg = f"""
 ⚠️ CONFIRMAR ELIMINACIÓN
-📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
 ━━━━━━━━━━━━━━━━━━━
 
 📝 Evidencia: {clean_name[:60]}
@@ -1305,9 +1289,10 @@ Aún no se ha realizado ninguna acción en el bot.
 ✅ Para confirmar la eliminación, escribe:
 /adm_confirmdelete_{cloud_idx}_{evid_idx}
 
-❌ Para cancelar, ignora este mensaje.
+🚫 Para cancelar, escribe:
+/adm_canceldelete_{cloud_idx}_{evid_idx}
+
 ━━━━━━━━━━━━━━━━━━━
-🕐 Hora Cuba: {format_cuba_datetime()}
                     """
                     
                     bot.editMessageText(message, confirm_msg)
@@ -1347,7 +1332,6 @@ Aún no se ha realizado ninguna acción en el bot.
                         
                         result_msg = f"""
 ✅ ELIMINACIÓN EXITOSA
-📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
 ━━━━━━━━━━━━━━━━━━━
 
 🗑️ Evidencia: {ev_name[:50]}
@@ -1357,12 +1341,56 @@ Aún no se ha realizado ninguna acción en el bot.
 
 📊 Datos actualizados correctamente.
 ━━━━━━━━━━━━━━━━━━━
-🕐 Hora Cuba: {format_cuba_datetime()}
                         """
                         
                         bot.editMessageText(message, result_msg)
                     else:
                         bot.editMessageText(message, f'❌ Error al eliminar: {ev_name}')
+                else:
+                    bot.editMessageText(message, '❌ No se encontró la evidencia')
+                    
+            except Exception as e:
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
+            return
+        
+        # ============================================
+        # COMANDO /adm_canceldelete_X_Y - CANCELAR ELIMINACIÓN
+        # ============================================
+        elif username == ADMIN_USERNAME and '/adm_canceldelete_' in msgText:
+            try:
+                # Extraer parámetros de forma segura
+                params = safe_extract_two_params(msgText, '/adm_canceldelete_')
+                
+                if params is None or len(params) != 2:
+                    bot.editMessageText(message, '❌ Formato incorrecto')
+                    return
+                
+                cloud_idx, evid_idx = params
+                
+                evidence = admin_evidence_manager.get_evidence(cloud_idx, evid_idx)
+                if evidence:
+                    ev_name = evidence['evidence_name']
+                    clean_name = ev_name
+                    
+                    for user in evidence['group_users']:
+                        marker = f"{USER_EVIDENCE_MARKER}{user}"
+                        if marker in ev_name:
+                            clean_name = ev_name.replace(marker, "").strip()
+                            break
+                    
+                    cancel_msg = f"""
+🚫 ELIMINACIÓN CANCELADA
+━━━━━━━━━━━━━━━━━━━
+
+✅ Evidencia preservada: {clean_name[:50]}
+📁 Archivos: {evidence['files_count']}
+☁️ Nube: {evidence['cloud_name'].replace('https://', '').replace('http://', '').split('/')[0]}
+
+📊 Ningún cambio realizado.
+━━━━━━━━━━━━━━━━━━━
+                    """
+                    
+                    bot.editMessageText(message, cancel_msg)
                 else:
                     bot.editMessageText(message, '❌ No se encontró la evidencia')
                     
@@ -1396,7 +1424,6 @@ Aún no se ha realizado ninguna acción en el bot.
                 
                 confirm_msg = f"""
 ⚠️ ⚠️ ⚠️ CONFIRMAR LIMPIEZA COMPLETA ⚠️ ⚠️ ⚠️
-📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
 ━━━━━━━━━━━━━━━━━━━
 
 ☁️ NUBE: {short_name}
@@ -1413,9 +1440,10 @@ Es COMPLETAMENTE IRREVERSIBLE.
 ✅ Para confirmar esta acción destructiva, escribe:
 /adm_confirmwipe_{cloud_idx}
 
-❌ Para cancelar, ignora este mensaje.
+🚫 Para cancelar, escribe:
+/adm_cancelwipe_{cloud_idx}
+
 ━━━━━━━━━━━━━━━━━━━
-🕐 Hora Cuba: {format_cuba_datetime()}
                 """
                 
                 bot.editMessageText(message, confirm_msg)
@@ -1461,7 +1489,6 @@ Es COMPLETAMENTE IRREVERSIBLE.
                         short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
                         result_msg = f"""
 💥 LIMPIEZA COMPLETA EXITOSA
-📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
 ━━━━━━━━━━━━━━━━━━━
 
 ✅ Nube: {short_name}
@@ -1471,7 +1498,6 @@ Es COMPLETAMENTE IRREVERSIBLE.
 📭 La nube ha sido limpiada completamente.
 📊 Datos actualizados correctamente.
 ━━━━━━━━━━━━━━━━━━━
-🕐 Hora Cuba: {format_cuba_datetime()}
                         """
                         
                         bot.editMessageText(message, result_msg)
@@ -1479,6 +1505,42 @@ Es COMPLETAMENTE IRREVERSIBLE.
                         bot.editMessageText(message, f'❌ Error al limpiar la nube {cloud_idx}')
                 else:
                     bot.editMessageText(message, '❌ No se encontró configuración para esta nube')
+                    
+            except Exception as e:
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
+            return
+        
+        # ============================================
+        # COMANDO /adm_cancelwipe_X - CANCELAR LIMPIEZA DE NUBE
+        # ============================================
+        elif username == ADMIN_USERNAME and '/adm_cancelwipe_' in msgText:
+            try:
+                # Extraer parámetro de forma segura
+                cloud_idx = safe_extract_one_param(msgText, '/adm_cancelwipe_')
+                
+                if cloud_idx is None:
+                    bot.editMessageText(message, '❌ Formato incorrecto')
+                    return
+                
+                if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
+                    bot.editMessageText(message, '❌ Índice inválido')
+                    return
+                
+                cloud_name = list(admin_evidence_manager.clouds_dict.keys())[cloud_idx]
+                short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
+                
+                cancel_msg = f"""
+🚫 LIMPIEZA CANCELADA
+━━━━━━━━━━━━━━━━━━━
+
+✅ Nube preservada: {short_name}
+📊 Evidencias intactas
+
+📈 Ningún cambio realizado.
+━━━━━━━━━━━━━━━━━━━
+                """
+                
+                bot.editMessageText(message, cancel_msg)
                     
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
@@ -1499,7 +1561,6 @@ Es COMPLETAMENTE IRREVERSIBLE.
                 
                 confirm_msg = f"""
 ⚠️ ⚠️ ⚠️ ¡ALERTA MÁXIMA! ⚠️ ⚠️ ⚠️
-📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
 ━━━━━━━━━━━━━━━━━━━
 
 Vas a eliminar TODAS las evidencias de TODAS las nubes.
@@ -1526,9 +1587,10 @@ NO hay forma de recuperarlos.
 ✅ Para confirmar esta acción DESTRUCTIVA, escribe:
 /adm_confirmnuke
 
-❌ Para cancelar, ignora este mensaje.
+🚫 Para cancelar, escribe:
+/adm_cancelnuke
+
 ━━━━━━━━━━━━━━━━━━━
-🕐 Hora Cuba: {format_cuba_datetime()}
                 """
                 
                 bot.editMessageText(message, confirm_msg)
@@ -1575,7 +1637,6 @@ NO hay forma de recuperarlos.
                 
                 final_msg = f"""
 💥💥💥 ELIMINACIÓN MASIVA COMPLETADA 💥💥💥
-📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
 ━━━━━━━━━━━━━━━━━━━
 
 📊 RESULTADOS FINALES:
@@ -1597,10 +1658,42 @@ NO hay forma de recuperarlos.
 📭 No quedan evidencias en ninguna nube.
 🔄 Datos actualizados correctamente.
 ━━━━━━━━━━━━━━━━━━━
-🕐 Hora Cuba: {format_cuba_datetime()}
                 """
                 
                 bot.editMessageText(message, final_msg)
+                
+            except Exception as e:
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
+            return
+        
+        # ============================================
+        # COMANDO /adm_cancelnuke - CANCELAR ELIMINACIÓN TOTAL
+        # ============================================
+        elif username == ADMIN_USERNAME and msgText == '/adm_cancelnuke':
+            try:
+                total_clouds = len(admin_evidence_manager.clouds_dict)
+                total_evidences = len(admin_evidence_manager.current_list)
+                total_files = 0
+                
+                for cloud_name, evidences in admin_evidence_manager.clouds_dict.items():
+                    for ev in evidences:
+                        total_files += ev['files_count']
+                
+                cancel_msg = f"""
+🚫🚫🚫 ELIMINACIÓN TOTAL CANCELADA 🚫🚫🚫
+━━━━━━━━━━━━━━━━━━━
+
+✅ TODAS LAS NUBES PRESERVADAS
+📊 DATOS INTACTOS:
+• Nubes: {total_clouds}
+• Evidencias: {total_evidences}
+• Archivos: {total_files}
+
+📈 Ningún cambio realizado.
+━━━━━━━━━━━━━━━━━━━
+                """
+                
+                bot.editMessageText(message, cancel_msg)
                 
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
@@ -1617,7 +1710,6 @@ NO hay forma de recuperarlos.
                 
                 stats_msg = f"""
 📊 TUS ESTADÍSTICAS
-📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
 ━━━━━━━━━━━━━━━━━━━
 
 👤 Usuario: @{username}
@@ -1631,13 +1723,10 @@ NO hay forma de recuperarlos.
 • Subiste {user_stats['uploads']} archivo(s)
 • Eliminaste {user_stats['deletes']} archivo(s)
 • Usaste {total_size_formatted} de espacio
-━━━━━━━━━━━━━━━━━━━
-🕐 Hora Cuba: {format_cuba_datetime()}
                 """
             else:
                 stats_msg = f"""
 📊 TUS ESTADÍSTICAS
-📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
 ━━━━━━━━━━━━━━━━━━━
 
 👤 Usuario: @{username}
@@ -1648,8 +1737,6 @@ NO hay forma de recuperarlos.
 🔗 Nube: {user_info['moodle_host']}
 ━━━━━━━━━━━━━━━━━━━
 ℹ️ Aún no has realizado ninguna acción
-━━━━━━━━━━━━━━━━━━━
-🕐 Hora Cuba: {format_cuba_datetime()}
                 """
             
             bot.editMessageText(message, stats_msg)
@@ -1663,7 +1750,7 @@ NO hay forma de recuperarlos.
             if '/adm_logs' in msgText:
                 try:
                     if not memory_stats.has_any_data():
-                        bot.editMessageText(message, f"⚠️ No hay datos registrados\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\nAún no se ha realizado ninguna acción en el bot.")
+                        bot.editMessageText(message, "⚠️ No hay datos registrados\nAún no se ha realizado ninguna acción en el bot.")
                         return
                     
                     limit = 20
@@ -1676,7 +1763,6 @@ NO hay forma de recuperarlos.
                     deletes = memory_stats.get_recent_deletes(limit)
                     
                     logs_msg = f"📋 ÚLTIMOS LOGS\n"
-                    logs_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
                     logs_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     if uploads:
@@ -1693,9 +1779,6 @@ NO hay forma de recuperarlos.
                             else:
                                 logs_msg += f"• {log['timestamp']} - @{log['username']}: {log['filename']} (de: {log['evidence_name']})\n"
                     
-                    logs_msg += f"\n━━━━━━━━━━━━━━━━━━━\n"
-                    logs_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
-                    
                     if len(logs_msg) > 4000:
                         logs_msg = logs_msg[:4000] + "\n\n⚠️ Logs truncados (demasiados)"
                     
@@ -1708,11 +1791,10 @@ NO hay forma de recuperarlos.
                 try:
                     users = memory_stats.get_all_users()
                     if not users:
-                        bot.editMessageText(message, f"⚠️ No hay usuarios registrados\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\nAún no se ha completado ninguna acción exitosa.")
+                        bot.editMessageText(message, "⚠️ No hay usuarios registrados\nAún no se ha completado ninguna acción exitosa.")
                         return
                     
                     users_msg = f"👥 ESTADÍSTICAS POR USUARIO\n"
-                    users_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
                     users_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     for user, data in sorted(users.items(), key=lambda x: x[1]['uploads'], reverse=True):
@@ -1722,9 +1804,6 @@ NO hay forma de recuperarlos.
                         users_msg += f"   🗑️ Eliminaciones: {data['deletes']}\n"
                         users_msg += f"   💾 Espacio usado: {total_size_formatted}\n"
                         users_msg += f"   📅 Última actividad: {data['last_activity']}\n\n"
-                    
-                    users_msg += f"━━━━━━━━━━━━━━━━━━━\n"
-                    users_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
                     
                     if len(users_msg) > 4000:
                         users_msg = users_msg[:4000] + "\n\n⚠️ Lista truncada (demasiados usuarios)"
@@ -1738,11 +1817,10 @@ NO hay forma de recuperarlos.
                 try:
                     uploads = memory_stats.get_recent_uploads(15)
                     if not uploads:
-                        bot.editMessageText(message, f"⚠️ No hay subidas registradas\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\nAún no se ha completado ninguna subida exitosa.")
+                        bot.editMessageText(message, "⚠️ No hay subidas registradas\nAún no se ha completado ninguna subida exitosa.")
                         return
                     
                     uploads_msg = f"📤 ÚLTIMAS SUBIDAS\n"
-                    uploads_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
                     uploads_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     for i, log in enumerate(uploads, 1):
@@ -1751,9 +1829,6 @@ NO hay forma de recuperarlos.
                         uploads_msg += f"   📅 {log['timestamp']}\n"
                         uploads_msg += f"   📏 {log['file_size_formatted']}\n"
                         uploads_msg += f"   🔗 {log['moodle_host']}\n\n"
-                    
-                    uploads_msg += f"━━━━━━━━━━━━━━━━━━━\n"
-                    uploads_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
                     
                     bot.editMessageText(message, uploads_msg)
                 except Exception as e:
@@ -1764,11 +1839,10 @@ NO hay forma de recuperarlos.
                 try:
                     deletes = memory_stats.get_recent_deletes(15)
                     if not deletes:
-                        bot.editMessageText(message, f"⚠️ No hay eliminaciones registradas\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\nAún no se ha completado ninguna eliminación exitosa.")
+                        bot.editMessageText(message, "⚠️ No hay eliminaciones registradas\nAún no se ha completado ninguna eliminación exitosa.")
                         return
                     
                     deletes_msg = f"🗑️ ÚLTIMAS ELIMINACIONES\n"
-                    deletes_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
                     deletes_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     for i, log in enumerate(deletes, 1):
@@ -1786,9 +1860,6 @@ NO hay forma de recuperarlos.
                         
                         deletes_msg += f"   🔗 {log['moodle_host']}\n\n"
                     
-                    deletes_msg += f"━━━━━━━━━━━━━━━━━━━\n"
-                    deletes_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
-                    
                     bot.editMessageText(message, deletes_msg)
                 except Exception as e:
                     bot.editMessageText(message, f"❌ Error al obtener eliminaciones: {str(e)}")
@@ -1797,11 +1868,11 @@ NO hay forma de recuperarlos.
             elif '/adm_cleardata' in msgText:
                 try:
                     if not memory_stats.has_any_data():
-                        bot.editMessageText(message, f"⚠️ No hay datos para limpiar\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\nLa memoria está vacía.")
+                        bot.editMessageText(message, "⚠️ No hay datos para limpiar\nLa memoria está vacía.")
                         return
                     
                     result = memory_stats.clear_all_data()
-                    bot.editMessageText(message, f"✅ {result}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}")
+                    bot.editMessageText(message, f"✅ {result}")
                 except Exception as e:
                     bot.editMessageText(message, f"❌ Error al limpiar datos: {str(e)}")
                 return
@@ -1835,7 +1906,6 @@ NO hay forma de recuperarlos.
                 
                 if len(visible_list) > 0:
                     files_msg = f"📁 TUS EVIDENCIAS\n"
-                    files_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
                     files_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     for idx, item in enumerate(visible_list):
@@ -1843,16 +1913,14 @@ NO hay forma de recuperarlos.
                         files_msg += f" /txt_{idx} /del_{idx}\n\n"
                    
                     files_msg += f"━━━━━━━━━━━━━━━━━━━\n"
-                    files_msg += f"Total: {len(visible_list)} evidencia(s)\n"
-                    files_msg += f"━━━━━━━━━━━━━━━━━━━\n"
-                    files_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
+                    files_msg += f"Total: {len(visible_list)} evidencia(s)"
                     
                     bot.editMessageText(message, files_msg)
                 else:
-                    bot.editMessageText(message, f"📭 No hay evidencias disponibles\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}")
+                    bot.editMessageText(message, '📭 No hay evidencias disponibles')
                 client.logout()
             else:
-                bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path + f"\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}")
+                bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
                 
         elif '/txt_' in msgText:
             try:
@@ -1878,7 +1946,7 @@ NO hay forma de recuperarlos.
                             })
                     
                     if findex < 0 or findex >= len(visible_list):
-                        bot.editMessageText(message, f'❌ Índice inválido. Use /files para ver la lista.\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+                        bot.editMessageText(message, '❌ Índice inválido. Use /files para ver la lista.')
                         client.logout()
                         return
                     
@@ -1890,13 +1958,13 @@ NO hay forma de recuperarlos.
                     sendTxt(txtname, evindex['files'], update, bot)
                     
                     client.logout()
-                    bot.editMessageText(message, f'📄 TXT enviado: {clean_name}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+                    bot.editMessageText(message,'📄 TXT Aquí')
                 else:
-                    bot.editMessageText(message, f'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: {client.path}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+                    bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
             except ValueError:
-                bot.editMessageText(message, f'❌ Formato incorrecto. Use: /txt_0\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /txt_0 (donde 0 es el número de la evidencia)')
             except Exception as e:
-                bot.editMessageText(message, f'❌ Error: {str(e)}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
                 print(f"Error en /txt_: {e}")
              
         elif '/del_' in msgText:
@@ -1924,7 +1992,7 @@ NO hay forma de recuperarlos.
                             })
                     
                     if findex < 0 or findex >= len(visible_list):
-                        bot.editMessageText(message, f'❌ Índice inválido. Use /files para ver la lista.\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+                        bot.editMessageText(message, '❌ Índice inválido. Use /files para ver la lista.')
                         client.logout()
                         return
                     
@@ -1957,7 +2025,6 @@ NO hay forma de recuperarlos.
                     
                     confirmation_msg = f"🗑️ Evidencia eliminada: {evidence_clean_name}\n"
                     confirmation_msg += f"📁 Archivos borrados: {file_count}\n"
-                    confirmation_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
                     confirmation_msg += f"━━━━━━━━━━━━━━━━━━━\n"
                     
                     if len(updated_visible_list) > 0:
@@ -1969,22 +2036,17 @@ NO hay forma de recuperarlos.
                             confirmation_msg += f" {clean_name} [ {item_file_count} ]\n"
                             confirmation_msg += f" /txt_{idx} /del_{idx}\n\n"
                         
-                        confirmation_msg += f"━━━━━━━━━━━━━━━━━━━\n"
-                        confirmation_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
-                        
                         bot.editMessageText(message, confirmation_msg)
                     else:
-                        confirmation_msg += f"📭 No hay evidencias disponibles\n"
-                        confirmation_msg += f"━━━━━━━━━━━━━━━━━━━\n"
-                        confirmation_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
+                        confirmation_msg += f"📭 No hay evidencias disponibles"
                         bot.editMessageText(message, confirmation_msg)
                     
                 else:
-                    bot.editMessageText(message, f'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: {client.path}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+                    bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
             except ValueError:
-                bot.editMessageText(message, f'❌ Formato incorrecto. Use: /del_0\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /del_0 (donde 0 es el número de la evidencia)')
             except Exception as e:
-                bot.editMessageText(message, f'❌ Error: {str(e)}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
                 print(f"Error en /del_: {e}")
                 
         elif '/delall' in msgText:
@@ -2006,7 +2068,7 @@ NO hay forma de recuperarlos.
                             user_evidences.append(ev)
                     
                     if not user_evidences:
-                        bot.editMessageText(message, f'📭 No hay evidencias disponibles\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+                        bot.editMessageText(message, '📭 No hay evidencias disponibles')
                         client.logout()
                         return
                     
@@ -2033,23 +2095,19 @@ NO hay forma de recuperarlos.
                     )
                     
                     deletion_msg = f"🗑️ ELIMINACIÓN MASIVA COMPLETADA\n"
-                    deletion_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
-                    deletion_msg += f"━━━━━━━━━━━━━━━━━━━\n"
                     deletion_msg += f"📊 Resumen:\n"
                     deletion_msg += f"   • Evidencias eliminadas: {total_evidences}\n"
                     deletion_msg += f"   • Archivos borrados: {total_files}\n"
                     deletion_msg += f"\n━━━━━━━━━━━━━━━━━━━\n"
                     deletion_msg += f"✅ ¡Todas tus evidencias han sido eliminadas!\n"
-                    deletion_msg += f"📭 No hay evidencias disponibles\n"
-                    deletion_msg += f"━━━━━━━━━━━━━━━━━━━\n"
-                    deletion_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
+                    deletion_msg += f"📭 No hay evidencias disponibles"
                     
                     bot.editMessageText(message, deletion_msg)
                     
                 else:
-                    bot.editMessageText(message, f'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: {client.path}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+                    bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
             except Exception as e:
-                bot.editMessageText(message, f'❌ Error: {str(e)}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
                 print(f"Error en /delall: {e}")
                 
         elif 'http' in msgText:
@@ -2074,8 +2132,7 @@ NO hay forma de recuperarlos.
                     warning_msg = bot.sendMessage(update.message.chat.id, 
                                       f"⚠️ {funny_message}\n\n"
                                       f"❌ Cojoneee, tú piensas q esto es una nube artificial o q? Para q tú quieres subir {file_size_mb:.2f} MB?\n\n"
-                                      f"⬆️ Bueno, lo subiré😡\n"
-                                      f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}")
+                                      f"⬆️ Bueno, lo subiré😡")
                     funny_message_sent = warning_msg
                 
             except Exception as e:
@@ -2087,7 +2144,7 @@ NO hay forma de recuperarlos.
                 delete_message_after_delay(bot, funny_message_sent.chat.id, funny_message_sent.message_id, 8)
             
         else:
-            bot.editMessageText(message, f'➲ No se pudo procesar ✗\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
+            bot.editMessageText(message,'➲ No se pudo procesar ✗ ')
             
     except Exception as ex:
         print(f"Error general en onmessage: {str(ex)}")
