@@ -652,6 +652,46 @@ def delete_all_evidences_from_cloud(cloud_config):
     except Exception as e:
         return False, 0, 0
 
+# ==============================
+# FUNCIONES SEGURAS PARA EXTRACCIÓN DE PARÁMETROS
+# ==============================
+
+def safe_extract_two_params(msgText, prefix):
+    """
+    Extrae dos parámetros de forma segura sin errores de 'confirm'
+    """
+    if prefix in msgText:
+        # Remover el prefijo
+        clean_text = msgText.replace(prefix, "")
+        parts = clean_text.strip('_').split('_')
+        
+        params = []
+        for part in parts[:2]:  # Solo tomar primeros 2
+            try:
+                params.append(int(part))
+            except ValueError:
+                # Si no es número, retornar error
+                return None
+        
+        if len(params) == 2:
+            return params
+    return None
+
+def safe_extract_one_param(msgText, prefix):
+    """
+    Extrae un parámetro de forma segura
+    """
+    if prefix in msgText:
+        clean_text = msgText.replace(prefix, "")
+        parts = clean_text.strip('_').split('_')
+        
+        for part in parts:
+            try:
+                return int(part)
+            except ValueError:
+                continue
+    return None
+
 class AdminEvidenceManager:
     """Gestor de evidencias para administrador"""
     
@@ -683,7 +723,7 @@ class AdminEvidenceManager:
                     'evidence': evidence
                 })
         
-        self.last_update = datetime.datetime.now()
+        self.last_update = get_cuba_time()
         return len(self.current_list)
     
     def get_evidence(self, cloud_idx, evid_idx):
@@ -744,6 +784,10 @@ class AdminEvidenceManager:
 
 admin_evidence_manager = AdminEvidenceManager()
 
+# ==============================
+# FUNCIÓN PRINCIPAL ONMESSAGE
+# ==============================
+
 def onmessage(update,bot:ObigramClient):
     try:
         thread = bot.this_thread
@@ -791,36 +835,59 @@ def onmessage(update,bot:ObigramClient):
         message = bot.sendMessage(update.message.chat.id,'➲ Procesando ✪ ●●○')
         thread.store('msg',message)
 
-        # COMANDO DE INICIO MEJORADO
+        # ============================================
+        # COMANDO /start MEJORADO PARA ADMINISTRADOR
+        # ============================================
         if '/start' in msgText:
             if username == ADMIN_USERNAME:
-                # Mensaje especial para administrador
+                # Mensaje especial para administrador CORREGIDO
                 start_msg = f"""
 👑 USUARIO ADMINISTRADOR
 
 👤 Usuario: @{username}
 🔧 Rol: Administrador
 📅 Fecha: {format_cuba_date()}
+🕐 Hora Cuba: {format_cuba_datetime().split(' ')[1]}
 
-☁️ TU NUBE CONFIGURADA:
-• Host: {user_info["moodle_host"]}
-• Usuario: {user_info["moodle_user"]}
-• Evidence: Activado
+⚠️ NOTA IMPORTANTE:
+• Tienes acceso de administrador a TODAS las nubes
+• Puedes gestionar evidencias de todos los usuarios
+• Los comandos de admin empiezan con /adm_
 
-🎯 COMANDOS DE ADMINISTRADOR:
-/adm - Panel principal
+📊 NUBES CONFIGURADAS: {len(PRE_CONFIGURATED_USERS)}
+
+🎯 COMANDOS PRINCIPALES:
+/admin - Panel principal de administración
+
+📈 COMANDOS DE ESTADÍSTICAS:
 /adm_logs - Ver logs del sistema
 /adm_users - Ver usuarios y estadísticas
 /adm_uploads - Ver últimas subidas
 /adm_deletes - Ver últimas eliminaciones
-/adm_evidencias - Gestionar evidencias de TODAS las nubes
-/adm_txt_X_Y - Ver TXT de evidencia X-Y
-/adm_cleardata - Limpiar datos del sistema
+/adm_cleardata - Limpiar estadísticas
+
+☁️ COMANDOS DE GESTIÓN DE NUBES:
+/adm_allclouds - Ver todas las nubes
+/adm_cloud_X - Ver nube específica
+/adm_show_X_Y - Ver detalles de evidencia
+/adm_fetch_X_Y - Descargar TXT de evidencia
+/adm_delete_X_Y - Eliminar una evidencia
+/adm_wipe_X - Limpiar toda una nube
+/adm_nuke - Eliminar TODO (peligro extremo)
+
+🔧 TUS COMANDOS PERSONALES:
+/files - Ver tus evidencias personales
+/txt_X - Ver TXT de tu evidencia
+/del_X - Eliminar tu evidencia
+/delall - Eliminar todas tus evidencias
+/mystats - Ver tus estadísticas
 
 🔗 FileToLink: @fileeliellinkBot
-🕐 Hora Cuba: {format_cuba_datetime().split(' ')[1]}
+━━━━━━━━━━━━━━━━━━━
+🕐 Actual: {format_cuba_datetime()}
                 """
             else:
+                # Mensaje para usuario regular
                 start_msg = f"""
 👤 USUARIO REGULAR
 
@@ -828,7 +895,9 @@ def onmessage(update,bot:ObigramClient):
 ☁️ Nube: Moodle
 📁 Evidence: Activado
 🔗 Host: {user_info["moodle_host"]}
+👤 Cuenta: {user_info["moodle_user"]}
 📅 Fecha: {format_cuba_date()}
+🕐 Hora Cuba: {format_cuba_datetime().split(' ')[1]}
 
 🔧 TUS COMANDOS:
 /start - Ver esta información
@@ -839,14 +908,89 @@ def onmessage(update,bot:ObigramClient):
 /mystats - Ver tus estadísticas
 
 🔗 FileToLink: @fileeliellinkBot
-🕐 Hora Cuba: {format_cuba_datetime().split(' ')[1]}
+━━━━━━━━━━━━━━━━━━━
+🕐 Actual: {format_cuba_datetime()}
                 """
             
             bot.editMessageText(message, start_msg)
             return
         
-        # COMANDO MEJORADO: GESTIÓN DE EVIDENCIAS PARA ADMIN
-        elif username == ADMIN_USERNAME and '/adm_evidencias' in msgText:
+        # ============================================
+        # COMANDO /admin - PANEL PRINCIPAL DE ADMIN
+        # ============================================
+        if username == ADMIN_USERNAME and msgText == '/admin':
+            stats = memory_stats.get_all_stats()
+            total_size_formatted = format_file_size(stats['total_size_uploaded'])
+            current_date = format_cuba_date()
+            current_time = format_cuba_datetime().split(' ')[1]
+            
+            if memory_stats.has_any_data():
+                admin_msg = f"""
+👑 PANEL DE ADMINISTRADOR
+📅 {current_date} | 🕐 {current_time}
+━━━━━━━━━━━━━━━━━━━
+📊 ESTADÍSTICAS GLOBALES:
+• Subidas totales: {stats['total_uploads']}
+• Eliminaciones totales: {stats['total_deletes']}
+• Espacio total subido: {total_size_formatted}
+• Nubes configuradas: {len(PRE_CONFIGURATED_USERS)}
+
+📈 COMANDOS DE ESTADÍSTICAS:
+/adm_logs - Ver últimos logs
+/adm_users - Ver estadísticas por usuario
+/adm_uploads - Ver últimas subidas
+/adm_deletes - Ver últimas eliminaciones
+/adm_cleardata - Limpiar todos los datos
+
+☁️ COMANDOS DE GESTIÓN DE NUBES:
+/adm_allclouds - Ver todas las nubes
+/adm_cloud_X - Ver nube específica
+/adm_show_X_Y - Ver detalles de evidencia
+/adm_fetch_X_Y - Descargar TXT de evidencia
+/adm_delete_X_Y - Eliminar una evidencia
+/adm_wipe_X - Limpiar toda una nube
+/adm_nuke - Eliminar TODO (peligro)
+
+🔧 OTROS COMANDOS:
+/start - Ver información del usuario
+━━━━━━━━━━━━━━━━━━━
+🕐 Hora Cuba: {format_cuba_datetime()}
+                """
+            else:
+                admin_msg = f"""
+👑 PANEL DE ADMINISTRADOR
+📅 {current_date} | 🕐 {current_time}
+━━━━━━━━━━━━━━━━━━━
+⚠️ NO HAY DATOS REGISTRADOS
+Aún no se ha realizado ninguna acción en el bot.
+
+📊 Nubes configuradas: {len(PRE_CONFIGURATED_USERS)}
+
+📈 COMANDOS DE ESTADÍSTICAS:
+/adm_logs - Ver últimos logs
+/adm_users - Ver estadísticas por usuario
+/adm_uploads - Ver últimas subidas
+/adm_deletes - Ver últimas eliminaciones
+
+☁️ COMANDOS DE GESTIÓN DE NUBES:
+/adm_allclouds - Ver todas las nubes
+/adm_cloud_X - Ver nube específica
+/adm_show_X_Y - Ver detalles de evidencia
+/adm_fetch_X_Y - Descargar TXT de evidencia
+
+🔧 OTROS COMANDOS:
+/start - Ver información del usuario
+━━━━━━━━━━━━━━━━━━━
+🕐 Hora Cuba: {format_cuba_datetime()}
+                """
+            
+            bot.editMessageText(message, admin_msg)
+            return
+        
+        # ============================================
+        # COMANDO /adm_allclouds - VER TODAS LAS NUBES
+        # ============================================
+        elif username == ADMIN_USERNAME and '/adm_allclouds' in msgText:
             try:
                 # Verificar si necesita refrescar datos
                 refresh_needed = False
@@ -858,7 +1002,7 @@ def onmessage(update,bot:ObigramClient):
                         refresh_needed = True
                 
                 if refresh_needed or '_refresh' in msgText:
-                    bot.editMessageText(message, '🔄 Actualizando lista de evidencias...')
+                    bot.editMessageText(message, '🔄 Actualizando lista de nubes...')
                     total_evidences = admin_evidence_manager.refresh_data()
                     
                     if total_evidences == 0:
@@ -875,9 +1019,9 @@ def onmessage(update,bot:ObigramClient):
                         total_files += ev['files_count']
                 
                 menu_msg = f"""
-👑 GESTIÓN DE EVIDENCIAS - ADMIN
-📅 {format_cuba_date()}
-🕐 Actualizado: {admin_evidence_manager.last_update.strftime('%H:%M') if admin_evidence_manager.last_update else 'Nunca'}
+👑 GESTIÓN DE TODAS LAS NUBES
+📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
+🔄 Actualizado: {admin_evidence_manager.last_update.strftime('%H:%M') if admin_evidence_manager.last_update else 'Nunca'}
 ━━━━━━━━━━━━━━━━━━━
 
 📊 RESUMEN GENERAL:
@@ -891,13 +1035,15 @@ def onmessage(update,bot:ObigramClient):
                 for cloud_name, evidences in admin_evidence_manager.clouds_dict.items():
                     cloud_files = sum(ev['files_count'] for ev in evidences)
                     short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
-                    users = ', '.join(evidences[0]['group_users']) if evidences else ''
+                    users = ', '.join(evidences[0]['group_users'][:3]) if evidences else ''
                     
-                    menu_msg += f"\n\n{cloud_index+1}. {short_name}"
-                    menu_msg += f"\n   👥 {users[:30]}..."
+                    menu_msg += f"\n\n{cloud_index}. {short_name}"
+                    menu_msg += f"\n   👥 {users}"
+                    if len(evidences[0]['group_users']) > 3:
+                        menu_msg += f"... (+{len(evidences[0]['group_users']) - 3})"
                     menu_msg += f"\n   📁 {len(evidences)} evidencias, {cloud_files} archivos"
-                    menu_msg += f"\n   🔍 /adm_evid_list_{cloud_index}"
-                    menu_msg += f"\n   🗑️ /adm_evid_delcloud_{cloud_index}"
+                    menu_msg += f"\n   🔍 /adm_cloud_{cloud_index}"
+                    menu_msg += f"\n   🗑️ /adm_wipe_{cloud_index}"
                     
                     cloud_index += 1
                 
@@ -905,11 +1051,10 @@ def onmessage(update,bot:ObigramClient):
 
 ━━━━━━━━━━━━━━━━━━━
 🔧 OPCIONES RÁPIDAS:
-/adm_evid_all - Ver todas las evidencias
-/adm_evid_refresh - Actualizar lista
-/adm_evid_delall - ⚠️ Eliminar TODO
+/adm_allclouds_refresh - Actualizar lista
+/adm_nuke - ⚠️ Eliminar TODO (peligro)
 ━━━━━━━━━━━━━━━━━━━
-ℹ️ Usa /adm_evid_list_X para ver evidencias de una nube específica
+ℹ️ Usa /adm_cloud_X para ver evidencias de una nube
                 """
                 
                 bot.editMessageText(message, menu_msg)
@@ -918,127 +1063,164 @@ def onmessage(update,bot:ObigramClient):
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
             return
         
-        # COMANDO: Listar evidencias de una nube específica
-        elif username == ADMIN_USERNAME and '/adm_evid_list_' in msgText:
+        # ============================================
+        # COMANDO /adm_cloud_X - VER NUBE ESPECÍFICA
+        # ============================================
+        elif username == ADMIN_USERNAME and '/adm_cloud_' in msgText:
             try:
-                parts = msgText.split('_')
-                if len(parts) >= 4:
-                    cloud_idx = int(parts[3])
-                    
-                    if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
-                        bot.editMessageText(message, '❌ Índice de nube inválido')
-                        return
-                    
-                    cloud_name = list(admin_evidence_manager.clouds_dict.keys())[cloud_idx]
-                    evidences = admin_evidence_manager.clouds_dict[cloud_name]
-                    
-                    short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
-                    users = ', '.join(evidences[0]['group_users']) if evidences else ''
-                    
-                    list_msg = f"""
+                # Extraer parámetro de forma segura
+                cloud_idx = safe_extract_one_param(msgText, '/adm_cloud_')
+                
+                if cloud_idx is None:
+                    bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_cloud_0')
+                    return
+                
+                if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
+                    bot.editMessageText(message, f'❌ Índice inválido. Máximo: {len(admin_evidence_manager.clouds_dict)-1}')
+                    return
+                
+                cloud_name = list(admin_evidence_manager.clouds_dict.keys())[cloud_idx]
+                evidences = admin_evidence_manager.clouds_dict[cloud_name]
+                
+                short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
+                users = ', '.join(evidences[0]['group_users']) if evidences else ''
+                
+                list_msg = f"""
 📋 EVIDENCIAS DE LA NUBE
 ☁️ {short_name}
 👥 Usuarios: {users}
-📅 {format_cuba_date()}
+📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
 ━━━━━━━━━━━━━━━━━━━
 
 """
-                    for idx, evidence in enumerate(evidences):
-                        ev_name = evidence['evidence_name']
-                        
-                        # Limpiar nombre de evidencia
-                        for user in evidence['group_users']:
-                            marker = f"{USER_EVIDENCE_MARKER}{user}"
-                            if marker in ev_name:
-                                clean_name = ev_name.replace(marker, "")
-                                user_tag = f"(@{user})"
-                                break
-                        else:
-                            clean_name = ev_name
-                            user_tag = ""
-                        
-                        list_msg += f"{idx+1}. {clean_name[:30]}"
-                        if len(clean_name) > 30:
-                            list_msg += "..."
-                        list_msg += f" {user_tag}\n"
-                        list_msg += f"   📁 Archivos: {evidence['files_count']}\n"
-                        list_msg += f"   📄 /adm_txt_{cloud_idx}_{idx}\n"
-                        list_msg += f"   🗑️ /adm_del_{cloud_idx}_{idx}\n\n"
+                for idx, evidence in enumerate(evidences):
+                    ev_name = evidence['evidence_name']
                     
-                    list_msg += f"""
+                    # Limpiar nombre de evidencia
+                    clean_name = ev_name
+                    user_tags = []
+                    
+                    for user in evidence['group_users']:
+                        marker = f"{USER_EVIDENCE_MARKER}{user}"
+                        if marker in ev_name:
+                            clean_name = ev_name.replace(marker, "").strip()
+                            user_tags.append(f"@{user}")
+                    
+                    if user_tags:
+                        user_str = f" ({', '.join(user_tags[:2])})"
+                        if len(user_tags) > 2:
+                            user_str = f" ({', '.join(user_tags[:2])}...)"
+                    else:
+                        user_str = ""
+                    
+                    list_msg += f"{idx}. {clean_name[:40]}"
+                    if len(clean_name) > 40:
+                        list_msg += "..."
+                    list_msg += f"{user_str}\n"
+                    list_msg += f"   📁 Archivos: {evidence['files_count']}\n"
+                    list_msg += f"   👁️ /adm_show_{cloud_idx}_{idx}\n"
+                    list_msg += f"   📄 /adm_fetch_{cloud_idx}_{idx}\n"
+                    list_msg += f"   🗑️ /adm_delete_{cloud_idx}_{idx}\n\n"
+                
+                list_msg += f"""
 ━━━━━━━━━━━━━━━━━━━
 🔧 ACCIONES MASIVAS:
-/adm_evid_delcloud_{cloud_idx} - Eliminar TODO de esta nube
+/adm_wipe_{cloud_idx} - Eliminar TODO de esta nube
 
 📊 RESUMEN:
 • Evidencias: {len(evidences)}
 • Archivos: {sum(e['files_count'] for e in evidences)}
 • Última actualización: {admin_evidence_manager.last_update.strftime('%H:%M') if admin_evidence_manager.last_update else 'Nunca'}
+━━━━━━━━━━━━━━━━━━━
+🕐 Hora Cuba: {format_cuba_datetime()}
+                """
+                
+                bot.editMessageText(message, list_msg)
+                
+            except Exception as e:
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
+            return
+        
+        # ============================================
+        # COMANDO /adm_show_X_Y - VER DETALLES DE EVIDENCIA
+        # ============================================
+        elif username == ADMIN_USERNAME and '/adm_show_' in msgText:
+            try:
+                # Extraer parámetros de forma segura
+                params = safe_extract_two_params(msgText, '/adm_show_')
+                
+                if params is None or len(params) != 2:
+                    bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_show_0_1')
+                    return
+                
+                cloud_idx, evid_idx = params
+                
+                evidence = admin_evidence_manager.get_evidence(cloud_idx, evid_idx)
+                if evidence:
+                    ev_name = evidence['evidence_name']
+                    cloud_name = evidence['cloud_name']
+                    short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
+                    
+                    # Limpiar nombre
+                    clean_name = ev_name
+                    user_tags = []
+                    
+                    for user in evidence['group_users']:
+                        marker = f"{USER_EVIDENCE_MARKER}{user}"
+                        if marker in ev_name:
+                            clean_name = ev_name.replace(marker, "").strip()
+                            user_tags.append(f"@{user}")
+                    
+                    show_msg = f"""
+👁️ DETALLES DE EVIDENCIA
+📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
+━━━━━━━━━━━━━━━━━━━
+
+📝 Nombre: {clean_name}
+📁 Archivos: {evidence['files_count']}
+☁️ Nube: {short_name}
+👥 Usuarios: {', '.join(evidence['group_users'])[:50]}
+{'...' if len(', '.join(evidence['group_users'])) > 50 else ''}
+
+🔧 ACCIONES DISPONIBLES:
+📄 /adm_fetch_{cloud_idx}_{evid_idx} - Descargar TXT
+🗑️ /adm_delete_{cloud_idx}_{evid_idx} - Eliminar
+
+📊 ESTADÍSTICAS:
+• Nube índice: {cloud_idx}
+• Evidencia índice: {evid_idx}
+• URL completa: {cloud_name}
+━━━━━━━━━━━━━━━━━━━
+🕐 Hora Cuba: {format_cuba_datetime()}
                     """
                     
-                    bot.editMessageText(message, list_msg)
-                    
-            except Exception as e:
-                bot.editMessageText(message, f'❌ Error: {str(e)}')
-            return
-        
-        # COMANDO: Ver TXT de evidencia (ADMIN)
-        elif username == ADMIN_USERNAME and '/adm_txt_' in msgText:
-            try:
-                parts = msgText.split('_')
-                if len(parts) >= 4:
-                    cloud_idx = int(parts[2])
-                    evid_idx = int(parts[3])
-                    
-                    bot.editMessageText(message, '📄 Obteniendo TXT...')
-                    
-                    files = admin_evidence_manager.get_txt_for_evidence(cloud_idx, evid_idx)
-                    
-                    if files:
-                        evidence = admin_evidence_manager.get_evidence(cloud_idx, evid_idx)
-                        if evidence:
-                            ev_name = evidence['evidence_name']
-                            clean_name = ev_name
-                            
-                            for user in evidence['group_users']:
-                                marker = f"{USER_EVIDENCE_MARKER}{user}"
-                                if marker in ev_name:
-                                    clean_name = ev_name.replace(marker, "")
-                                    break
-                            
-                            txtname = f"admin_{clean_name}_{cloud_idx}_{evid_idx}.txt"
-                            txt = open(txtname, 'w')
-                            
-                            for i, f in enumerate(files):
-                                url = f['directurl']
-                                txt.write(url)
-                                if i < len(files) - 1:
-                                    txt.write('\n\n')
-                            
-                            txt.close()
-                            bot.sendFile(update.message.chat.id, txtname)
-                            os.unlink(txtname)
-                            
-                            bot.editMessageText(message, f'✅ TXT enviado: {clean_name}')
-                        else:
-                            bot.editMessageText(message, '❌ No se encontró la evidencia')
-                    else:
-                        bot.editMessageText(message, '❌ No hay archivos en esta evidencia')
+                    bot.editMessageText(message, show_msg)
                 else:
-                    bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_txt_X_Y')
+                    bot.editMessageText(message, '❌ No se encontró la evidencia')
                     
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
             return
         
-        # COMANDO: Eliminar evidencia específica (ADMIN)
-        elif username == ADMIN_USERNAME and '/adm_del_' in msgText:
+        # ============================================
+        # COMANDO /adm_fetch_X_Y - DESCARGAR TXT DE EVIDENCIA
+        # ============================================
+        elif username == ADMIN_USERNAME and '/adm_fetch_' in msgText:
             try:
-                parts = msgText.split('_')
-                if len(parts) >= 4:
-                    cloud_idx = int(parts[2])
-                    evid_idx = int(parts[3])
-                    
+                # Extraer parámetros de forma segura
+                params = safe_extract_two_params(msgText, '/adm_fetch_')
+                
+                if params is None or len(params) != 2:
+                    bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_fetch_0_1')
+                    return
+                
+                cloud_idx, evid_idx = params
+                
+                bot.editMessageText(message, '📄 Obteniendo archivos TXT...')
+                
+                files = admin_evidence_manager.get_txt_for_evidence(cloud_idx, evid_idx)
+                
+                if files:
                     evidence = admin_evidence_manager.get_evidence(cloud_idx, evid_idx)
                     if evidence:
                         ev_name = evidence['evidence_name']
@@ -1047,185 +1229,278 @@ def onmessage(update,bot:ObigramClient):
                         for user in evidence['group_users']:
                             marker = f"{USER_EVIDENCE_MARKER}{user}"
                             if marker in ev_name:
-                                clean_name = ev_name.replace(marker, "")
+                                clean_name = ev_name.replace(marker, "").strip()
                                 break
                         
-                        confirm_msg = f"""
-⚠️ CONFIRMAR ELIMINACIÓN
-
-📝 Evidencia: {clean_name[:50]}
-📁 Archivos: {evidence['files_count']}
-☁️ Nube: {evidence['cloud_name'].replace('https://', '').replace('http://', '').split('/')[0]}
-👥 Usuarios: {', '.join(evidence['group_users'][:3])}
-
-❌ Esta acción es irreversible.
-
-✅ Para confirmar, escribe:
-/adm_del_confirm_{cloud_idx}_{evid_idx}
-                        """
+                        # Crear nombre seguro para archivo
+                        safe_name = ''.join(c for c in clean_name if c.isalnum() or c in (' ', '-', '_')).strip()
+                        if not safe_name:
+                            safe_name = f"evidencia_{cloud_idx}_{evid_idx}"
                         
-                        bot.editMessageText(message, confirm_msg)
+                        txtname = f"admin_{safe_name}_{cloud_idx}_{evid_idx}.txt"
+                        txt = open(txtname, 'w')
+                        
+                        for i, f in enumerate(files):
+                            url = f['directurl']
+                            txt.write(url)
+                            if i < len(files) - 1:
+                                txt.write('\n\n')
+                        
+                        txt.close()
+                        bot.sendFile(update.message.chat.id, txtname)
+                        os.unlink(txtname)
+                        
+                        bot.editMessageText(message, f'✅ TXT enviado: {clean_name[:50]}')
                     else:
                         bot.editMessageText(message, '❌ No se encontró la evidencia')
                 else:
-                    bot.editMessageText(message, '❌ Formato incorrecto')
+                    bot.editMessageText(message, '❌ No hay archivos en esta evidencia')
                     
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
             return
         
-        # COMANDO: Confirmar eliminación de evidencia
-        elif username == ADMIN_USERNAME and '/adm_del_confirm_' in msgText:
+        # ============================================
+        # COMANDO /adm_delete_X_Y - ELIMINAR UNA EVIDENCIA
+        # ============================================
+        elif username == ADMIN_USERNAME and '/adm_delete_' in msgText:
             try:
-                parts = msgText.split('_')
-                if len(parts) >= 5:
-                    cloud_idx = int(parts[3])
-                    evid_idx = int(parts[4])
+                # Extraer parámetros de forma segura
+                params = safe_extract_two_params(msgText, '/adm_delete_')
+                
+                if params is None or len(params) != 2:
+                    bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_delete_0_1')
+                    return
+                
+                cloud_idx, evid_idx = params
+                
+                evidence = admin_evidence_manager.get_evidence(cloud_idx, evid_idx)
+                if evidence:
+                    ev_name = evidence['evidence_name']
+                    clean_name = ev_name
                     
-                    evidence = admin_evidence_manager.get_evidence(cloud_idx, evid_idx)
-                    if evidence:
-                        bot.editMessageText(message, '🗑️ Eliminando evidencia...')
-                        
-                        success, ev_name, files_count = delete_evidence_from_cloud(
-                            evidence['cloud_config'], 
-                            evidence['evidence_data']
-                        )
-                        
-                        if success:
-                            # Actualizar datos
-                            admin_evidence_manager.refresh_data()
-                            
-                            result_msg = f"""
-✅ ELIMINACIÓN EXITOSA
-
-🗑️ Evidencia: {ev_name[:50]}
-📁 Archivos eliminados: {files_count}
-☁️ Nube: {evidence['cloud_name'].replace('https://', '').replace('http://', '').split('/')[0]}
-
-📊 Datos actualizados.
-                            """
-                            
-                            bot.editMessageText(message, result_msg)
-                        else:
-                            bot.editMessageText(message, f'❌ Error al eliminar: {ev_name}')
-                    else:
-                        bot.editMessageText(message, '❌ No se encontró la evidencia')
-                else:
-                    bot.editMessageText(message, '❌ Formato incorrecto')
+                    for user in evidence['group_users']:
+                        marker = f"{USER_EVIDENCE_MARKER}{user}"
+                        if marker in ev_name:
+                            clean_name = ev_name.replace(marker, "").strip()
+                            break
                     
-            except Exception as e:
-                bot.editMessageText(message, f'❌ Error: {str(e)}')
-            return
-        
-        # COMANDO: Eliminar toda una nube
-        elif username == ADMIN_USERNAME and '/adm_evid_delcloud_' in msgText:
-            try:
-                parts = msgText.split('_')
-                if len(parts) >= 4:
-                    cloud_idx = int(parts[3])
-                    
-                    if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
-                        bot.editMessageText(message, '❌ Índice de nube inválido')
-                        return
-                    
-                    cloud_name = list(admin_evidence_manager.clouds_dict.keys())[cloud_idx]
-                    evidences = admin_evidence_manager.clouds_dict[cloud_name]
-                    
-                    total_evidences = len(evidences)
-                    total_files = sum(e['files_count'] for e in evidences)
+                    cloud_name = evidence['cloud_name']
                     short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
                     
                     confirm_msg = f"""
-⚠️ ⚠️ ⚠️ CONFIRMAR ELIMINACIÓN MASIVA ⚠️ ⚠️ ⚠️
+⚠️ CONFIRMAR ELIMINACIÓN
+📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
+━━━━━━━━━━━━━━━━━━━
+
+📝 Evidencia: {clean_name[:60]}
+{'...' if len(clean_name) > 60 else ''}
+📁 Archivos: {evidence['files_count']}
+☁️ Nube: {short_name}
+👥 Usuarios: {', '.join(evidence['group_users'][:3])}
+{'...' if len(evidence['group_users']) > 3 else ''}
+
+❌ Esta acción es irreversible.
+
+✅ Para confirmar la eliminación, escribe:
+/adm_confirmdelete_{cloud_idx}_{evid_idx}
+
+❌ Para cancelar, ignora este mensaje.
+━━━━━━━━━━━━━━━━━━━
+🕐 Hora Cuba: {format_cuba_datetime()}
+                    """
+                    
+                    bot.editMessageText(message, confirm_msg)
+                else:
+                    bot.editMessageText(message, '❌ No se encontró la evidencia')
+                    
+            except Exception as e:
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
+            return
+        
+        # ============================================
+        # COMANDO /adm_confirmdelete_X_Y - CONFIRMAR ELIMINACIÓN
+        # ============================================
+        elif username == ADMIN_USERNAME and '/adm_confirmdelete_' in msgText:
+            try:
+                # Extraer parámetros de forma segura
+                params = safe_extract_two_params(msgText, '/adm_confirmdelete_')
+                
+                if params is None or len(params) != 2:
+                    bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_confirmdelete_0_1')
+                    return
+                
+                cloud_idx, evid_idx = params
+                
+                evidence = admin_evidence_manager.get_evidence(cloud_idx, evid_idx)
+                if evidence:
+                    bot.editMessageText(message, '🗑️ Eliminando evidencia...')
+                    
+                    success, ev_name, files_count = delete_evidence_from_cloud(
+                        evidence['cloud_config'], 
+                        evidence['evidence_data']
+                    )
+                    
+                    if success:
+                        # Actualizar datos
+                        admin_evidence_manager.refresh_data()
+                        
+                        result_msg = f"""
+✅ ELIMINACIÓN EXITOSA
+📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
+━━━━━━━━━━━━━━━━━━━
+
+🗑️ Evidencia: {ev_name[:50]}
+{'...' if len(ev_name) > 50 else ''}
+📁 Archivos eliminados: {files_count}
+☁️ Nube: {evidence['cloud_name'].replace('https://', '').replace('http://', '').split('/')[0]}
+
+📊 Datos actualizados correctamente.
+━━━━━━━━━━━━━━━━━━━
+🕐 Hora Cuba: {format_cuba_datetime()}
+                        """
+                        
+                        bot.editMessageText(message, result_msg)
+                    else:
+                        bot.editMessageText(message, f'❌ Error al eliminar: {ev_name}')
+                else:
+                    bot.editMessageText(message, '❌ No se encontró la evidencia')
+                    
+            except Exception as e:
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
+            return
+        
+        # ============================================
+        # COMANDO /adm_wipe_X - LIMPIAR TODA UNA NUBE
+        # ============================================
+        elif username == ADMIN_USERNAME and '/adm_wipe_' in msgText:
+            try:
+                # Extraer parámetro de forma segura
+                cloud_idx = safe_extract_one_param(msgText, '/adm_wipe_')
+                
+                if cloud_idx is None:
+                    bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_wipe_0')
+                    return
+                
+                if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
+                    bot.editMessageText(message, f'❌ Índice inválido. Máximo: {len(admin_evidence_manager.clouds_dict)-1}')
+                    return
+                
+                cloud_name = list(admin_evidence_manager.clouds_dict.keys())[cloud_idx]
+                evidences = admin_evidence_manager.clouds_dict[cloud_name]
+                
+                total_evidences = len(evidences)
+                total_files = sum(e['files_count'] for e in evidences)
+                short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
+                users = ', '.join(evidences[0]['group_users'][:3]) if evidences else ''
+                
+                confirm_msg = f"""
+⚠️ ⚠️ ⚠️ CONFIRMAR LIMPIEZA COMPLETA ⚠️ ⚠️ ⚠️
+📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
+━━━━━━━━━━━━━━━━━━━
 
 ☁️ NUBE: {short_name}
 📊 ESTADÍSTICAS:
 • Evidencias a eliminar: {total_evidences}
 • Archivos a borrar: {total_files}
-• Usuarios afectados: {', '.join(evidences[0]['group_users']) if evidences else 'Ninguno'}
+• Usuarios afectados: {users}
+{'...' if len(evidences[0]['group_users']) > 3 else ''}
 
 ❌ ❌ ❌ ADVERTENCIA ❌ ❌ ❌
 Esta acción eliminará TODAS las evidencias de esta nube.
 Es COMPLETAMENTE IRREVERSIBLE.
 
 ✅ Para confirmar esta acción destructiva, escribe:
-/adm_evid_delcloud_confirm_{cloud_idx}
-                        """
-                    
-                    bot.editMessageText(message, confirm_msg)
+/adm_confirmwipe_{cloud_idx}
+
+❌ Para cancelar, ignora este mensaje.
+━━━━━━━━━━━━━━━━━━━
+🕐 Hora Cuba: {format_cuba_datetime()}
+                """
+                
+                bot.editMessageText(message, confirm_msg)
                     
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
             return
         
-        # COMANDO: Confirmar eliminación de nube
-        elif username == ADMIN_USERNAME and '/adm_evid_delcloud_confirm_' in msgText:
+        # ============================================
+        # COMANDO /adm_confirmwipe_X - CONFIRMAR LIMPIEZA DE NUBE
+        # ============================================
+        elif username == ADMIN_USERNAME and '/adm_confirmwipe_' in msgText:
             try:
-                parts = msgText.split('_')
-                if len(parts) >= 5:
-                    cloud_idx = int(parts[4])
+                # Extraer parámetro de forma segura
+                cloud_idx = safe_extract_one_param(msgText, '/adm_confirmwipe_')
+                
+                if cloud_idx is None:
+                    bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_confirmwipe_0')
+                    return
+                
+                if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
+                    bot.editMessageText(message, f'❌ Índice inválido. Máximo: {len(admin_evidence_manager.clouds_dict)-1}')
+                    return
+                
+                cloud_name = list(admin_evidence_manager.clouds_dict.keys())[cloud_idx]
+                
+                # Buscar configuración de la nube
+                cloud_config = None
+                for user_group, config in PRE_CONFIGURATED_USERS.items():
+                    if config.get('moodle_host') == cloud_name:
+                        cloud_config = config
+                        break
+                
+                if cloud_config:
+                    bot.editMessageText(message, f'💣 Limpiando nube {cloud_idx}...')
                     
-                    if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
-                        bot.editMessageText(message, '❌ Índice de nube inválido')
-                        return
+                    success, deleted_count, total_files = delete_all_evidences_from_cloud(cloud_config)
                     
-                    cloud_name = list(admin_evidence_manager.clouds_dict.keys())[cloud_idx]
-                    
-                    # Buscar configuración de la nube
-                    cloud_config = None
-                    for user_group, config in PRE_CONFIGURATED_USERS.items():
-                        if config.get('moodle_host') == cloud_name:
-                            cloud_config = config
-                            break
-                    
-                    if cloud_config:
-                        bot.editMessageText(message, f'💣 Eliminando TODO de {cloud_name}...')
+                    if success:
+                        # Actualizar datos
+                        admin_evidence_manager.refresh_data()
                         
-                        success, deleted_count, total_files = delete_all_evidences_from_cloud(cloud_config)
-                        
-                        if success:
-                            # Actualizar datos
-                            admin_evidence_manager.refresh_data()
-                            
-                            short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
-                            result_msg = f"""
-💥 ELIMINACIÓN MASIVA COMPLETADA
+                        short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
+                        result_msg = f"""
+💥 LIMPIEZA COMPLETA EXITOSA
+📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
+━━━━━━━━━━━━━━━━━━━
 
 ✅ Nube: {short_name}
 ✅ Evidencias eliminadas: {deleted_count}
 ✅ Archivos borrados: {total_files}
 
 📭 La nube ha sido limpiada completamente.
-📊 Datos actualizados.
-                            """
-                            
-                            bot.editMessageText(message, result_msg)
-                        else:
-                            bot.editMessageText(message, f'❌ Error al eliminar de {cloud_name}')
+📊 Datos actualizados correctamente.
+━━━━━━━━━━━━━━━━━━━
+🕐 Hora Cuba: {format_cuba_datetime()}
+                        """
+                        
+                        bot.editMessageText(message, result_msg)
                     else:
-                        bot.editMessageText(message, '❌ No se encontró configuración para esta nube')
+                        bot.editMessageText(message, f'❌ Error al limpiar la nube {cloud_idx}')
                 else:
-                    bot.editMessageText(message, '❌ Formato incorrecto')
+                    bot.editMessageText(message, '❌ No se encontró configuración para esta nube')
                     
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
             return
         
-        # COMANDO: Eliminar todo de todas las nubes
-        elif username == ADMIN_USERNAME and '/adm_evid_delall' in msgText:
+        # ============================================
+        # COMANDO /adm_nuke - ELIMINAR TODO
+        # ============================================
+        elif username == ADMIN_USERNAME and msgText == '/adm_nuke':
             try:
-                if not '_confirm' in msgText:
-                    # Mostrar confirmación
-                    total_clouds = len(admin_evidence_manager.clouds_dict)
-                    total_evidences = len(admin_evidence_manager.current_list)
-                    total_files = 0
-                    
-                    for cloud_name, evidences in admin_evidence_manager.clouds_dict.items():
-                        for ev in evidences:
-                            total_files += ev['files_count']
-                    
-                    confirm_msg = f"""
+                total_clouds = len(admin_evidence_manager.clouds_dict)
+                total_evidences = len(admin_evidence_manager.current_list)
+                total_files = 0
+                
+                for cloud_name, evidences in admin_evidence_manager.clouds_dict.items():
+                    for ev in evidences:
+                        total_files += ev['files_count']
+                
+                confirm_msg = f"""
 ⚠️ ⚠️ ⚠️ ¡ALERTA MÁXIMA! ⚠️ ⚠️ ⚠️
+📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
+━━━━━━━━━━━━━━━━━━━
 
 Vas a eliminar TODAS las evidencias de TODAS las nubes.
 
@@ -1235,13 +1510,13 @@ Vas a eliminar TODAS las evidencias de TODAS las nubes.
 • Archivos borrados: {total_files}
 
 ☁️ LISTA DE NUBES AFECTADAS:"""
-                    
-                    for cloud_name, evidences in admin_evidence_manager.clouds_dict.items():
-                        cloud_files = sum(ev['files_count'] for ev in evidences)
-                        short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
-                        confirm_msg += f"\n• {short_name}: {len(evidences)} evidencias, {cloud_files} archivos"
-                    
-                    confirm_msg += f"""
+                
+                for cloud_name, evidences in admin_evidence_manager.clouds_dict.items():
+                    cloud_files = sum(ev['files_count'] for ev in evidences)
+                    short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
+                    confirm_msg += f"\n• {short_name}: {len(evidences)} evidencias, {cloud_files} archivos"
+                
+                confirm_msg += f"""
 
 ❌ ❌ ❌ ADVERTENCIA CRÍTICA ❌ ❌ ❌
 Esta acción es COMPLETAMENTE IRREVERSIBLE.
@@ -1249,18 +1524,23 @@ Se borrarán TODOS los datos de TODAS las nubes.
 NO hay forma de recuperarlos.
 
 ✅ Para confirmar esta acción DESTRUCTIVA, escribe:
-/adm_evid_delall_confirm
-                        """
-                    
-                    bot.editMessageText(message, confirm_msg)
-                    return
+/adm_confirmnuke
+
+❌ Para cancelar, ignora este mensaje.
+━━━━━━━━━━━━━━━━━━━
+🕐 Hora Cuba: {format_cuba_datetime()}
+                """
+                
+                bot.editMessageText(message, confirm_msg)
                     
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
             return
         
-        # COMANDO: Confirmar eliminación total
-        elif username == ADMIN_USERNAME and '/adm_evid_delall_confirm' in msgText:
+        # ============================================
+        # COMANDO /adm_confirmnuke - CONFIRMAR ELIMINACIÓN TOTAL
+        # ============================================
+        elif username == ADMIN_USERNAME and msgText == '/adm_confirmnuke':
             try:
                 bot.editMessageText(message, '💣💣💣 ELIMINANDO TODO DE TODAS LAS NUBES...')
                 
@@ -1295,6 +1575,8 @@ NO hay forma de recuperarlos.
                 
                 final_msg = f"""
 💥💥💥 ELIMINACIÓN MASIVA COMPLETADA 💥💥💥
+📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
+━━━━━━━━━━━━━━━━━━━
 
 📊 RESULTADOS FINALES:
 • Nubes procesadas: {len(results)}
@@ -1313,7 +1595,9 @@ NO hay forma de recuperarlos.
 ━━━━━━━━━━━━━━━━━━━
 ✅ Todas las nubes han sido limpiadas.
 📭 No quedan evidencias en ninguna nube.
-🔄 Datos actualizados.
+🔄 Datos actualizados correctamente.
+━━━━━━━━━━━━━━━━━━━
+🕐 Hora Cuba: {format_cuba_datetime()}
                 """
                 
                 bot.editMessageText(message, final_msg)
@@ -1321,7 +1605,11 @@ NO hay forma de recuperarlos.
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
             return
-
+        
+        # ============================================
+        # COMANDOS DE ESTADÍSTICAS REGULARES
+        # ============================================
+        
         if '/mystats' in msgText:
             user_stats = memory_stats.get_user_stats(username)
             if user_stats:
@@ -1329,6 +1617,8 @@ NO hay forma de recuperarlos.
                 
                 stats_msg = f"""
 📊 TUS ESTADÍSTICAS
+📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
+━━━━━━━━━━━━━━━━━━━
 
 👤 Usuario: @{username}
 📤 Archivos subidos: {user_stats['uploads']}
@@ -1341,10 +1631,14 @@ NO hay forma de recuperarlos.
 • Subiste {user_stats['uploads']} archivo(s)
 • Eliminaste {user_stats['deletes']} archivo(s)
 • Usaste {total_size_formatted} de espacio
+━━━━━━━━━━━━━━━━━━━
+🕐 Hora Cuba: {format_cuba_datetime()}
                 """
             else:
                 stats_msg = f"""
 📊 TUS ESTADÍSTICAS
+📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}
+━━━━━━━━━━━━━━━━━━━
 
 👤 Usuario: @{username}
 📤 Archivos subidos: 0
@@ -1354,62 +1648,22 @@ NO hay forma de recuperarlos.
 🔗 Nube: {user_info['moodle_host']}
 ━━━━━━━━━━━━━━━━━━━
 ℹ️ Aún no has realizado ninguna acción
+━━━━━━━━━━━━━━━━━━━
+🕐 Hora Cuba: {format_cuba_datetime()}
                 """
             
             bot.editMessageText(message, stats_msg)
             return
 
+        # ============================================
+        # COMANDOS DE ADMINISTRADOR (ESTADÍSTICAS)
+        # ============================================
+        
         if username == ADMIN_USERNAME:
-            if '/adm' in msgText and not any(x in msgText for x in ['_logs', '_users', '_uploads', '_deletes', '_cleardata', '_evidencias', '_txt', '_del']):
-                stats = memory_stats.get_all_stats()
-                total_size_formatted = format_file_size(stats['total_size_uploaded'])
-                current_date = format_cuba_date()
-                
-                if memory_stats.has_any_data():
-                    admin_msg = f"""
-👑 PANEL DE ADMINISTRADOR
-📅 {current_date}
-━━━━━━━━━━━━━━━━━━━
-📊 ESTADÍSTICAS GLOBALES:
-• Subidas totales: {stats['total_uploads']}
-• Eliminaciones totales: {stats['total_deletes']}
-• Espacio total subido: {total_size_formatted}
-
-🔧 COMANDOS DISPONIBLES:
-/adm_logs - Ver últimos logs
-/adm_users - Ver estadísticas por usuario
-/adm_uploads - Ver últimas subidas
-/adm_deletes - Ver últimas eliminaciones
-/adm_evidencias - Gestionar evidencias de todas las nubes
-/adm_cleardata - Limpiar todos los datos
-━━━━━━━━━━━━━━━━━━━
-🕐 Hora Cuba: {format_cuba_datetime().split(' ')[1]}
-                    """
-                else:
-                    admin_msg = f"""
-👑 PANEL DE ADMINISTRADOR
-📅 {current_date}
-━━━━━━━━━━━━━━━━━━━
-⚠️ NO HAY DATOS REGISTRADOS
-Aún no se ha realizado ninguna acción en el bot.
-
-🔧 COMANDOS DISPONIBLES:
-/adm_logs - Ver últimos logs
-/adm_users - Ver estadísticas por usuario
-/adm_uploads - Ver últimas subidas
-/adm_deletes - Ver últimas eliminaciones
-/adm_evidencias - Gestionar evidencias de todas las nubes
-━━━━━━━━━━━━━━━━━━━
-🕐 Hora Cuba: {format_cuba_datetime().split(' ')[1]}
-                    """
-                
-                bot.editMessageText(message, admin_msg)
-                return
-            
-            elif '/adm_logs' in msgText:
+            if '/adm_logs' in msgText:
                 try:
                     if not memory_stats.has_any_data():
-                        bot.editMessageText(message, "⚠️ No hay datos registrados\nAún no se ha realizado ninguna acción en el bot.")
+                        bot.editMessageText(message, f"⚠️ No hay datos registrados\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\nAún no se ha realizado ninguna acción en el bot.")
                         return
                     
                     limit = 20
@@ -1422,7 +1676,7 @@ Aún no se ha realizado ninguna acción en el bot.
                     deletes = memory_stats.get_recent_deletes(limit)
                     
                     logs_msg = f"📋 ÚLTIMOS LOGS\n"
-                    logs_msg += f"📅 {format_cuba_date()}\n"
+                    logs_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
                     logs_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     if uploads:
@@ -1439,6 +1693,9 @@ Aún no se ha realizado ninguna acción en el bot.
                             else:
                                 logs_msg += f"• {log['timestamp']} - @{log['username']}: {log['filename']} (de: {log['evidence_name']})\n"
                     
+                    logs_msg += f"\n━━━━━━━━━━━━━━━━━━━\n"
+                    logs_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
+                    
                     if len(logs_msg) > 4000:
                         logs_msg = logs_msg[:4000] + "\n\n⚠️ Logs truncados (demasiados)"
                     
@@ -1451,11 +1708,11 @@ Aún no se ha realizado ninguna acción en el bot.
                 try:
                     users = memory_stats.get_all_users()
                     if not users:
-                        bot.editMessageText(message, "⚠️ No hay usuarios registrados\nAún no se ha completado ninguna acción exitosa.")
+                        bot.editMessageText(message, f"⚠️ No hay usuarios registrados\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\nAún no se ha completado ninguna acción exitosa.")
                         return
                     
                     users_msg = f"👥 ESTADÍSTICAS POR USUARIO\n"
-                    users_msg += f"📅 {format_cuba_date()}\n"
+                    users_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
                     users_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     for user, data in sorted(users.items(), key=lambda x: x[1]['uploads'], reverse=True):
@@ -1465,6 +1722,9 @@ Aún no se ha realizado ninguna acción en el bot.
                         users_msg += f"   🗑️ Eliminaciones: {data['deletes']}\n"
                         users_msg += f"   💾 Espacio usado: {total_size_formatted}\n"
                         users_msg += f"   📅 Última actividad: {data['last_activity']}\n\n"
+                    
+                    users_msg += f"━━━━━━━━━━━━━━━━━━━\n"
+                    users_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
                     
                     if len(users_msg) > 4000:
                         users_msg = users_msg[:4000] + "\n\n⚠️ Lista truncada (demasiados usuarios)"
@@ -1478,11 +1738,11 @@ Aún no se ha realizado ninguna acción en el bot.
                 try:
                     uploads = memory_stats.get_recent_uploads(15)
                     if not uploads:
-                        bot.editMessageText(message, "⚠️ No hay subidas registradas\nAún no se ha completado ninguna subida exitosa.")
+                        bot.editMessageText(message, f"⚠️ No hay subidas registradas\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\nAún no se ha completado ninguna subida exitosa.")
                         return
                     
                     uploads_msg = f"📤 ÚLTIMAS SUBIDAS\n"
-                    uploads_msg += f"📅 {format_cuba_date()}\n"
+                    uploads_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
                     uploads_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     for i, log in enumerate(uploads, 1):
@@ -1491,6 +1751,9 @@ Aún no se ha realizado ninguna acción en el bot.
                         uploads_msg += f"   📅 {log['timestamp']}\n"
                         uploads_msg += f"   📏 {log['file_size_formatted']}\n"
                         uploads_msg += f"   🔗 {log['moodle_host']}\n\n"
+                    
+                    uploads_msg += f"━━━━━━━━━━━━━━━━━━━\n"
+                    uploads_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
                     
                     bot.editMessageText(message, uploads_msg)
                 except Exception as e:
@@ -1501,11 +1764,11 @@ Aún no se ha realizado ninguna acción en el bot.
                 try:
                     deletes = memory_stats.get_recent_deletes(15)
                     if not deletes:
-                        bot.editMessageText(message, "⚠️ No hay eliminaciones registradas\nAún no se ha completado ninguna eliminación exitosa.")
+                        bot.editMessageText(message, f"⚠️ No hay eliminaciones registradas\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\nAún no se ha completado ninguna eliminación exitosa.")
                         return
                     
                     deletes_msg = f"🗑️ ÚLTIMAS ELIMINACIONES\n"
-                    deletes_msg += f"📅 {format_cuba_date()}\n"
+                    deletes_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
                     deletes_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     for i, log in enumerate(deletes, 1):
@@ -1523,6 +1786,9 @@ Aún no se ha realizado ninguna acción en el bot.
                         
                         deletes_msg += f"   🔗 {log['moodle_host']}\n\n"
                     
+                    deletes_msg += f"━━━━━━━━━━━━━━━━━━━\n"
+                    deletes_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
+                    
                     bot.editMessageText(message, deletes_msg)
                 except Exception as e:
                     bot.editMessageText(message, f"❌ Error al obtener eliminaciones: {str(e)}")
@@ -1531,15 +1797,19 @@ Aún no se ha realizado ninguna acción en el bot.
             elif '/adm_cleardata' in msgText:
                 try:
                     if not memory_stats.has_any_data():
-                        bot.editMessageText(message, "⚠️ No hay datos para limpiar\nLa memoria está vacía.")
+                        bot.editMessageText(message, f"⚠️ No hay datos para limpiar\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\nLa memoria está vacía.")
                         return
                     
                     result = memory_stats.clear_all_data()
-                    bot.editMessageText(message, f"✅ {result}")
+                    bot.editMessageText(message, f"✅ {result}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}")
                 except Exception as e:
                     bot.editMessageText(message, f"❌ Error al limpiar datos: {str(e)}")
                 return
 
+        # ============================================
+        # COMANDOS REGULARES DE USUARIO
+        # ============================================
+        
         elif '/files' == msgText:
             proxy = ProxyCloud.parse(user_info['proxy'])
             client = MoodleClient(user_info['moodle_user'],
@@ -1564,21 +1834,25 @@ Aún no se ha realizado ninguna acción en el bot.
                         })
                 
                 if len(visible_list) > 0:
-                    files_msg = "📁 TUS EVIDENCIAS:\n\n"
+                    files_msg = f"📁 TUS EVIDENCIAS\n"
+                    files_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
+                    files_msg += f"━━━━━━━━━━━━━━━━━━━\n\n"
                     
                     for idx, item in enumerate(visible_list):
                         files_msg += f" {item['name']} [ {item['file_count']} ]\n"
                         files_msg += f" /txt_{idx} /del_{idx}\n\n"
                    
                     files_msg += f"━━━━━━━━━━━━━━━━━━━\n"
-                    files_msg += f"Total: {len(visible_list)} evidencia(s)"
+                    files_msg += f"Total: {len(visible_list)} evidencia(s)\n"
+                    files_msg += f"━━━━━━━━━━━━━━━━━━━\n"
+                    files_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
                     
                     bot.editMessageText(message, files_msg)
                 else:
-                    bot.editMessageText(message,'📭 No hay evidencias disponibles')
+                    bot.editMessageText(message, f"📭 No hay evidencias disponibles\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}")
                 client.logout()
             else:
-                bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
+                bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path + f"\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}")
                 
         elif '/txt_' in msgText:
             try:
@@ -1604,7 +1878,7 @@ Aún no se ha realizado ninguna acción en el bot.
                             })
                     
                     if findex < 0 or findex >= len(visible_list):
-                        bot.editMessageText(message, '❌ Índice inválido. Use /files para ver la lista.')
+                        bot.editMessageText(message, f'❌ Índice inválido. Use /files para ver la lista.\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
                         client.logout()
                         return
                     
@@ -1616,13 +1890,13 @@ Aún no se ha realizado ninguna acción en el bot.
                     sendTxt(txtname, evindex['files'], update, bot)
                     
                     client.logout()
-                    bot.editMessageText(message,'📄 TXT Aquí')
+                    bot.editMessageText(message, f'📄 TXT enviado: {clean_name}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
                 else:
-                    bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
+                    bot.editMessageText(message, f'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: {client.path}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
             except ValueError:
-                bot.editMessageText(message, '❌ Formato incorrecto. Use: /txt_0 (donde 0 es el número de la evidencia)')
+                bot.editMessageText(message, f'❌ Formato incorrecto. Use: /txt_0\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
             except Exception as e:
-                bot.editMessageText(message, f'❌ Error: {str(e)}')
+                bot.editMessageText(message, f'❌ Error: {str(e)}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
                 print(f"Error en /txt_: {e}")
              
         elif '/del_' in msgText:
@@ -1650,7 +1924,7 @@ Aún no se ha realizado ninguna acción en el bot.
                             })
                     
                     if findex < 0 or findex >= len(visible_list):
-                        bot.editMessageText(message, '❌ Índice inválido. Use /files para ver la lista.')
+                        bot.editMessageText(message, f'❌ Índice inválido. Use /files para ver la lista.\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
                         client.logout()
                         return
                     
@@ -1683,6 +1957,7 @@ Aún no se ha realizado ninguna acción en el bot.
                     
                     confirmation_msg = f"🗑️ Evidencia eliminada: {evidence_clean_name}\n"
                     confirmation_msg += f"📁 Archivos borrados: {file_count}\n"
+                    confirmation_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
                     confirmation_msg += f"━━━━━━━━━━━━━━━━━━━\n"
                     
                     if len(updated_visible_list) > 0:
@@ -1694,17 +1969,22 @@ Aún no se ha realizado ninguna acción en el bot.
                             confirmation_msg += f" {clean_name} [ {item_file_count} ]\n"
                             confirmation_msg += f" /txt_{idx} /del_{idx}\n\n"
                         
+                        confirmation_msg += f"━━━━━━━━━━━━━━━━━━━\n"
+                        confirmation_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
+                        
                         bot.editMessageText(message, confirmation_msg)
                     else:
-                        confirmation_msg += f"📭 No hay evidencias disponibles"
+                        confirmation_msg += f"📭 No hay evidencias disponibles\n"
+                        confirmation_msg += f"━━━━━━━━━━━━━━━━━━━\n"
+                        confirmation_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
                         bot.editMessageText(message, confirmation_msg)
                     
                 else:
-                    bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
+                    bot.editMessageText(message, f'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: {client.path}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
             except ValueError:
-                bot.editMessageText(message, '❌ Formato incorrecto. Use: /del_0 (donde 0 es el número de la evidencia)')
+                bot.editMessageText(message, f'❌ Formato incorrecto. Use: /del_0\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
             except Exception as e:
-                bot.editMessageText(message, f'❌ Error: {str(e)}')
+                bot.editMessageText(message, f'❌ Error: {str(e)}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
                 print(f"Error en /del_: {e}")
                 
         elif '/delall' in msgText:
@@ -1726,7 +2006,7 @@ Aún no se ha realizado ninguna acción en el bot.
                             user_evidences.append(ev)
                     
                     if not user_evidences:
-                        bot.editMessageText(message, '📭 No hay evidencias disponibles')
+                        bot.editMessageText(message, f'📭 No hay evidencias disponibles\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
                         client.logout()
                         return
                     
@@ -1753,19 +2033,23 @@ Aún no se ha realizado ninguna acción en el bot.
                     )
                     
                     deletion_msg = f"🗑️ ELIMINACIÓN MASIVA COMPLETADA\n"
+                    deletion_msg += f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}\n"
+                    deletion_msg += f"━━━━━━━━━━━━━━━━━━━\n"
                     deletion_msg += f"📊 Resumen:\n"
                     deletion_msg += f"   • Evidencias eliminadas: {total_evidences}\n"
                     deletion_msg += f"   • Archivos borrados: {total_files}\n"
                     deletion_msg += f"\n━━━━━━━━━━━━━━━━━━━\n"
                     deletion_msg += f"✅ ¡Todas tus evidencias han sido eliminadas!\n"
-                    deletion_msg += f"📭 No hay evidencias disponibles"
+                    deletion_msg += f"📭 No hay evidencias disponibles\n"
+                    deletion_msg += f"━━━━━━━━━━━━━━━━━━━\n"
+                    deletion_msg += f"🕐 Hora Cuba: {format_cuba_datetime()}"
                     
                     bot.editMessageText(message, deletion_msg)
                     
                 else:
-                    bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
+                    bot.editMessageText(message, f'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: {client.path}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
             except Exception as e:
-                bot.editMessageText(message, f'❌ Error: {str(e)}')
+                bot.editMessageText(message, f'❌ Error: {str(e)}\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
                 print(f"Error en /delall: {e}")
                 
         elif 'http' in msgText:
@@ -1790,7 +2074,8 @@ Aún no se ha realizado ninguna acción en el bot.
                     warning_msg = bot.sendMessage(update.message.chat.id, 
                                       f"⚠️ {funny_message}\n\n"
                                       f"❌ Cojoneee, tú piensas q esto es una nube artificial o q? Para q tú quieres subir {file_size_mb:.2f} MB?\n\n"
-                                      f"⬆️ Bueno, lo subiré😡")
+                                      f"⬆️ Bueno, lo subiré😡\n"
+                                      f"📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}")
                     funny_message_sent = warning_msg
                 
             except Exception as e:
@@ -1802,7 +2087,7 @@ Aún no se ha realizado ninguna acción en el bot.
                 delete_message_after_delay(bot, funny_message_sent.chat.id, funny_message_sent.message_id, 8)
             
         else:
-            bot.editMessageText(message,'➲ No se pudo procesar ✗ ')
+            bot.editMessageText(message, f'➲ No se pudo procesar ✗\n📅 {format_cuba_date()} | 🕐 {format_cuba_datetime().split(' ')[1]}')
             
     except Exception as ex:
         print(f"Error general en onmessage: {str(ex)}")
