@@ -347,13 +347,18 @@ def processUploadFiles(filename,filesize,files,update,bot,message,thread=None,jd
         loged = client.login()
         if loged:
             evidences = client.getEvidences()
-            evidname = str(filename).split('.')[0]
+            username = update.message.sender.username
+            
+            # CAMBIO CLAVE: Agregar username al nombre de la evidencia
+            original_evidname = str(filename).split('.')[0]
+            evidname = f"{original_evidname}_by_{username}"  # ← Nombre modificado
+            
             for evid in evidences:
                 if evid['name'] == evidname:
                     evidence = evid
                     break
             if evidence is None:
-                evidence = client.createEvidence(evidname)
+                evidence = client.createEvidence(evidname)  # ← Crear con nombre modificado
 
             originalfile = ''
             if len(files)>1:
@@ -391,12 +396,14 @@ def processFile(update,bot,message,file,thread=None,jdb=None):
     file_upload_count = 0
     client = None
     
+    username = update.message.sender.username  # ← Obtener username aquí
+    
     if file_size > max_file_size:
         compresingInfo = infos.createCompresing(file,file_size,max_file_size)
         bot.editMessageText(message,compresingInfo)
         zipname = str(file).split('.')[0] + createID()
         mult_file = zipfile.MultiFile(zipname,max_file_size)
-        zip = zipfile.ZipFile(mult_file,  mode='w', compression=zipfile.ZIP_DEFLated)
+        zip = zipfile.ZipFile(mult_file,  mode='w', compression=zipfile.ZIP_DEFLATED)
         zip.write(file)
         zip.close()
         mult_file.close()
@@ -412,7 +419,10 @@ def processFile(update,bot,message,file,thread=None,jdb=None):
     evidname = ''
     files = []
     if client:
-        evidname = str(file).split('.')[0]
+        # CAMBIO: Usar el nombre modificado con username
+        original_evidname = str(file).split('.')[0]
+        evidname = f"{original_evidname}_by_{username}"  # ← Nombre modificado
+        
         txtname = evidname + '.txt'
         try:
             proxy = ProxyCloud.parse(getUser['proxy'])
@@ -427,7 +437,7 @@ def processFile(update,bot,message,file,thread=None,jdb=None):
                 # Buscar la evidencia que acabamos de crear/subir
                 evidence_index = -1
                 for idx, ev in enumerate(evidences):
-                    if ev['name'] == evidname:
+                    if ev['name'] == evidname:  # ← Buscar por nombre modificado
                         files = ev['files']
                         for i in range(len(files)):
                             url = files[i]['directurl']
@@ -455,7 +465,6 @@ def processFile(update,bot,message,file,thread=None,jdb=None):
         bot.sendMessage(message.chat.id,finishInfo+'\n'+filesInfo,parse_mode='html')
         
         # REGISTRAR SUBIDA EN MEMORIA
-        username = update.message.sender.username
         filename_clean = os.path.basename(file)
         memory_stats.log_upload(
             username=username,
@@ -539,7 +548,7 @@ def delete_message_after_delay(bot, chat_id, message_id, delay=8):
 def onmessage(update,bot:ObigramClient):
     try:
         thread = bot.this_thread
-        username = update.message.sender.username
+        username = update.message.sender.username  # ← Usuario actual
 
         jdb = JsonDatabase('database')
         jdb.check_create()
@@ -814,46 +823,72 @@ Aún no se ha realizado ninguna acción en el bot.
                                    user_info['moodle_repo_id'],proxy=proxy)
             loged = client.login()
             if loged:
-                files = client.getEvidences()
-                # VERIFICAR SI HAY EVIDENCIAS
-                if len(files) > 0:
-                    filesInfo = infos.createFilesMsg(files)
-                    bot.editMessageText(message,filesInfo)
+                all_evidences = client.getEvidences()
+                
+                # FILTRAR: Solo evidencias que terminan con "_by_{username}"
+                user_evidences = []
+                for ev in all_evidences:
+                    if ev['name'].endswith(f"_by_{username}"):
+                        user_evidences.append(ev)
+                
+                if len(user_evidences) > 0:
+                    # Re-indexar las evidencias para mostrar números consecutivos
+                    for idx, ev in enumerate(user_evidences):
+                        ev['display_index'] = idx  # Para mostrar correctamente
+                    
+                    filesInfo = infos.createFilesMsg(user_evidences)
+                    bot.editMessageText(message, 
+                        f"📁 **Tus evidencias** (@{username})\n"
+                        f"🔗 Host: {user_info['moodle_host']}\n"
+                        f"━━━━━━━━━━━━━━━━━━━\n"
+                        f"{filesInfo}")
                 else:
-                    bot.editMessageText(message,'📭 No hay evidencias disponibles')
+                    bot.editMessageText(message, 
+                        f"📭 No tienes evidencias subidas\n"
+                        f"👤 Usuario: @{username}\n"
+                        f"🔗 Host: {user_info['moodle_host']}")
                 client.logout()
             else:
                 bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
-                
+        
         elif '/txt_' in msgText:
-             try:
-                 findex = int(str(msgText).split('_')[1])
-                 proxy = ProxyCloud.parse(user_info['proxy'])
-                 client = MoodleClient(user_info['moodle_user'],
+            try:
+                findex = int(str(msgText).split('_')[1])
+                proxy = ProxyCloud.parse(user_info['proxy'])
+                client = MoodleClient(user_info['moodle_user'],
                                        user_info['moodle_password'],
                                        user_info['moodle_host'],
                                        user_info['moodle_repo_id'],proxy=proxy)
-                 loged = client.login()
-                 if loged:
-                     evidences = client.getEvidences()
-                     if findex < 0 or findex >= len(evidences):
-                         bot.editMessageText(message, f'❌ Índice inválido. Use /files para ver la lista.')
-                         client.logout()
-                         return
-                     
-                     evindex = evidences[findex]
-                     txtname = evindex['name']+'.txt'
-                     sendTxt(txtname,evindex['files'],update,bot)
-                     client.logout()
-                     bot.editMessageText(message,'📄 TXT Aquí 👇')
-                 else:
+                loged = client.login()
+                if loged:
+                    all_evidences = client.getEvidences()
+                    
+                    # FILTRAR: Solo evidencias del usuario
+                    user_evidences = []
+                    for ev in all_evidences:
+                        if ev['name'].endswith(f"_by_{username}"):
+                            user_evidences.append(ev)
+                    
+                    if findex < 0 or findex >= len(user_evidences):
+                        bot.editMessageText(message, f'❌ Índice inválido. Use /files para ver TUS evidencias.')
+                        client.logout()
+                        return
+                    
+                    evindex = user_evidences[findex]
+                    # Quitar el "_by_{username}" para el nombre del archivo TXT
+                    clean_name = evindex['name'].replace(f"_by_{username}", "")
+                    txtname = clean_name + '.txt'
+                    sendTxt(txtname, evindex['files'], update, bot)
+                    client.logout()
+                    bot.editMessageText(message, '📄 TXT Aquí 👇')
+                else:
                     bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
-             except ValueError:
-                 bot.editMessageText(message, '❌ Formato incorrecto. Use: /txt_0 (donde 0 es el número de la evidencia)')
-             except Exception as e:
-                 bot.editMessageText(message, f'❌ Error: {str(e)}')
-                 print(f"Error en /txt_: {e}")
-             
+            except ValueError:
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /txt_0')
+            except Exception as e:
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
+                print(f"Error en /txt_: {e}")
+        
         elif '/del_' in msgText:
             try:
                 findex = int(str(msgText).split('_')[1])
@@ -865,13 +900,20 @@ Aún no se ha realizado ninguna acción en el bot.
                                        proxy=proxy)
                 loged = client.login()
                 if loged:
-                    evidences = client.getEvidences()
-                    if findex < 0 or findex >= len(evidences):
-                        bot.editMessageText(message, f'❌ Índice inválido. Use /files para ver la lista.')
+                    all_evidences = client.getEvidences()
+                    
+                    # FILTRAR: Solo evidencias del usuario
+                    user_evidences = []
+                    for ev in all_evidences:
+                        if ev['name'].endswith(f"_by_{username}"):
+                            user_evidences.append(ev)
+                    
+                    if findex < 0 or findex >= len(user_evidences):
+                        bot.editMessageText(message, f'❌ Índice inválido. Use /files para ver TUS evidencias.')
                         client.logout()
                         return
                     
-                    evfile = evidences[findex]
+                    evfile = user_evidences[findex]
                     evidence_name = evfile['name']
                     
                     # OBTENER NOMBRES REALES DE LOS ARCHIVOS
@@ -905,33 +947,47 @@ Aún no se ha realizado ninguna acción en el bot.
                     client.deleteEvidence(evfile)
                     
                     # OBTENER LISTA ACTUALIZADA DESPUÉS DE ELIMINAR
-                    evidences = client.getEvidences()
+                    all_evidences = client.getEvidences()
+                    
+                    # FILTRAR NUEVAMENTE para mostrar lista actualizada
+                    user_evidences = []
+                    for ev in all_evidences:
+                        if ev['name'].endswith(f"_by_{username}"):
+                            user_evidences.append(ev)
+                    
                     client.logout()
                     
                     # REGISTRAR CADA ARCHIVO ELIMINADO
+                    clean_evidence_name = evidence_name.replace(f"_by_{username}", "")
                     for filename in deleted_files:
                         memory_stats.log_delete(
                             username=username,
                             filename=filename,
-                            evidence_name=evidence_name,
+                            evidence_name=clean_evidence_name,
                             moodle_host=user_info['moodle_host']
                         )
                     
                     # MOSTRAR LISTA ACTUALIZADA O MENSAJE DE NO DISPONIBLES
-                    if len(evidences) > 0:
-                        filesInfo = infos.createFilesMsg(evidences)
-                        bot.editMessageText(message, f'🗑️ Evidencia eliminada: {evidence_name}\n\n📋 Lista actualizada:\n{filesInfo}')
+                    if len(user_evidences) > 0:
+                        filesInfo = infos.createFilesMsg(user_evidences)
+                        bot.editMessageText(message, 
+                            f'🗑️ Evidencia eliminada: {clean_evidence_name}\n'
+                            f'👤 Usuario: @{username}\n\n'
+                            f'📋 **Tus evidencias actualizadas:**\n{filesInfo}')
                     else:
-                        bot.editMessageText(message, f'🗑️ Evidencia eliminada: {evidence_name}\n\n📭 No hay evidencias disponibles')
+                        bot.editMessageText(message, 
+                            f'🗑️ Evidencia eliminada: {clean_evidence_name}\n'
+                            f'👤 Usuario: @{username}\n\n'
+                            f'📭 No tienes evidencias subidas')
                     
                 else:
                     bot.editMessageText(message,'➲ Error y Causas ✗\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
             except ValueError:
-                bot.editMessageText(message, '❌ Formato incorrecto. Use: /del_0 (donde 0 es el número de la evidencia)')
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /del_0')
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
                 print(f"Error en /del_: {e}")
-                
+        
         elif '/delall' in msgText:
             try:
                 proxy = ProxyCloud.parse(user_info['proxy'])
@@ -942,18 +998,25 @@ Aún no se ha realizado ninguna acción en el bot.
                                        proxy=proxy)
                 loged = client.login()
                 if loged:
-                    evfiles = client.getEvidences()
-                    if not evfiles:
-                        bot.editMessageText(message, '📭 No hay evidencias disponibles')
+                    all_evidences = client.getEvidences()
+                    
+                    # FILTRAR: Solo evidencias del usuario
+                    user_evidences = []
+                    for ev in all_evidences:
+                        if ev['name'].endswith(f"_by_{username}"):
+                            user_evidences.append(ev)
+                    
+                    if not user_evidences:
+                        bot.editMessageText(message, f'📭 No tienes evidencias para eliminar\n👤 Usuario: @{username}')
                         client.logout()
                         return
                     
-                    total_evidences = len(evfiles)
+                    total_evidences = len(user_evidences)
                     total_files = 0
                     
                     # Contar archivos totales y registrar cada archivo individual
                     all_deleted_files = []
-                    for ev in evfiles:
+                    for ev in user_evidences:
                         files_in_evidence = ev.get('files', [])
                         total_files += len(files_in_evidence)
                         
@@ -980,20 +1043,19 @@ Aún no se ha realizado ninguna acción en el bot.
                             if not filename:
                                 filename = f"archivo_{len(all_deleted_files)+1}"
                             
+                            clean_evidence_name = ev['name'].replace(f"_by_{username}", "")
                             all_deleted_files.append({
                                 'filename': filename,
-                                'evidence_name': ev['name']
+                                'evidence_name': clean_evidence_name
                             })
                     
-                    # Eliminar TODAS las evidencias
-                    for item in evfiles:
+                    # Eliminar TODAS las evidencias DEL USUARIO
+                    for item in user_evidences:
                         try:
                             client.deleteEvidence(item)
                         except Exception as e:
                             print(f"Error eliminando evidencia: {e}")
                     
-                    # OBTENER LISTA ACTUALIZADA DESPUÉS DE ELIMINAR
-                    evidences = client.getEvidences()
                     client.logout()
                     
                     # REGISTRAR ELIMINACIÓN MASIVA
@@ -1013,12 +1075,12 @@ Aún no se ha realizado ninguna acción en el bot.
                             moodle_host=user_info['moodle_host']
                         )
                     
-                    # VERIFICAR SI HAY EVIDENCIAS DESPUÉS DE ELIMINAR
-                    if len(evidences) > 0:
-                        filesInfo = infos.createFilesMsg(evidences)
-                        bot.editMessageText(message, f'🗑️ TODAS las evidencias eliminadas\n📦 {total_evidences} evidencia(s) borrada(s)\n📁 Total archivos: {total_files}\n\n📋 Evidencias restantes:\n{filesInfo}')
-                    else:
-                        bot.editMessageText(message, f'🗑️ TODAS las evidencias eliminadas\n📦 {total_evidences} evidencia(s) borrada(s)\n📁 Total archivos: {total_files}\n\n📭 No hay evidencias disponibles')
+                    bot.editMessageText(message, 
+                        f'🗑️ **TODAS tus evidencias eliminadas**\n'
+                        f'👤 Usuario: @{username}\n'
+                        f'📦 Evidencias borradas: {total_evidences}\n'
+                        f'📁 Archivos totales: {total_files}\n\n'
+                        f'📭 Ya no tienes evidencias subidas')
                     
                 else:
                     bot.editMessageText(message,'➲ Error y Causas🧐\n1-Revise su Cuenta\n2-Servidor Deshabilitado: '+client.path)
