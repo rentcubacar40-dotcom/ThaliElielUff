@@ -877,36 +877,20 @@ def show_updated_cloud(bot, message, cloud_idx):
     """Muestra la lista actualizada de una nube después de eliminar"""
     try:
         # Obtener datos actualizados
-        admin_evidence_manager.refresh_data(force=True)  # Forzar refresco después de eliminar
+        admin_evidence_manager.refresh_data(force=True)
         cloud_names = list(admin_evidence_manager.clouds_dict.keys())
         
         # Verificar que el índice sea válido
         if cloud_idx < 0 or cloud_idx >= len(cloud_names):
-            # Si el índice es inválido, mostrar todas las nubes
             show_updated_all_clouds(bot, message)
             return
         
         cloud_name = cloud_names[cloud_idx]
         evidences = admin_evidence_manager.clouds_dict.get(cloud_name, [])
         
-        # VERIFICACIÓN CRÍTICA: Si no hay evidencias, mostrar todas las nubes
+        # VERIFICACIÓN: Si no hay evidencias, mostrar todas las nubes
         if not evidences:
-            short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
-            empty_msg = f"""
-📭 NUBE VACÍA
-━━━━━━━━━━━━━━━━━━━
-
-✅ ELIMINACIÓN COMPLETA
-☁️ {short_name}
-
-🎉 ¡Has eliminado todas las evidencias de esta nube!
-
-🔄 Regresando a todas las nubes...
-━━━━━━━━━━━━━━━━━━━
-            """
-            bot.editMessageText(message, empty_msg)
-            time.sleep(1.5)  # Breve pausa para que el usuario vea el mensaje
-            show_updated_all_clouds(bot, message)  # MOSTRAR TODAS LAS NUBES
+            show_updated_all_clouds(bot, message)
             return
         
         short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
@@ -964,7 +948,6 @@ def show_updated_cloud(bot, message, cloud_idx):
         bot.editMessageText(message, list_msg)
         
     except Exception as e:
-        # Manejo de error más amigable
         error_msg = f"""
 ❌ ERROR AL ACTUALIZAR
 ━━━━━━━━━━━━━━━━━━━
@@ -981,7 +964,7 @@ Usa /adm_allclouds para ver todas las nubes disponibles
 def show_updated_all_clouds(bot, message):
     """Muestra todas las nubes actualizadas después de una eliminación masiva"""
     try:
-        # Refrescar datos primero (con caché)
+        # Refrescar datos primero
         admin_evidence_manager.refresh_data()
         
         total_evidences = len(admin_evidence_manager.current_list)
@@ -993,7 +976,6 @@ def show_updated_all_clouds(bot, message):
                 total_files += ev['files_count']
         
         if total_evidences == 0:
-            # Si no hay evidencias en ninguna nube, mostrar mensaje simple
             empty_msg = f"""
 👑 TODAS LAS NUBES ACTUALIZADAS
 ━━━━━━━━━━━━━━━━━━━
@@ -1266,7 +1248,6 @@ Aún no se ha realizado ninguna acción en el bot.
                         show_loading_progress(bot, message, 2, 3)
                         
                         if total_evidences == 0:
-                            # Mensaje cuando no hay evidencias
                             empty_msg = f"""
 👑 TODAS LAS NUBES
 ━━━━━━━━━━━━━━━━━━━
@@ -1350,7 +1331,7 @@ Aún no se ha realizado ninguna acción en el bot.
                             bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_cloud_0')
                             return
                         
-                        # Refrescar datos primero (con caché)
+                        # Refrescar datos primero
                         admin_evidence_manager.refresh_data()
                         
                         if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
@@ -1532,7 +1513,7 @@ Aún no se ha realizado ninguna acción en el bot.
                         bot.editMessageText(message, f'❌ Error: {str(e)}')
                     return
                 
-                # /adm_delete_X_Y - ¡CORRECCIÓN PRINCIPAL!
+                # /adm_delete_X_Y - VERSIÓN SIMPLIFICADA
                 elif '/adm_delete_' in msgText:
                     try:
                         params = extract_two_params_simple(msgText, '/adm_delete_')
@@ -1542,45 +1523,31 @@ Aún no se ha realizado ninguna acción en el bot.
                         
                         cloud_idx, evid_idx = params
                         
-                        bot.editMessageText(message, '🔍 Verificando datos...')
+                        bot.editMessageText(message, '🗑️ Eliminando...')
                         
                         # Obtener datos actuales
                         admin_evidence_manager.refresh_data()
                         cloud_names = list(admin_evidence_manager.clouds_dict.keys())
                         
                         if cloud_idx < 0 or cloud_idx >= len(cloud_names):
-                            bot.editMessageText(message, f'❌ Índice de nube inválido')
-                            show_updated_all_clouds(bot, message)
+                            bot.editMessageText(message, f'❌ Índice inválido')
                             return
                         
                         cloud_name = cloud_names[cloud_idx]
                         evidences = admin_evidence_manager.clouds_dict.get(cloud_name, [])
                         
                         if not evidences:
-                            bot.editMessageText(message, f'📭 La nube {cloud_idx} ya está vacía')
+                            bot.editMessageText(message, f'📭 La nube ya está vacía')
                             show_updated_all_clouds(bot, message)
                             return
                         
                         if evid_idx < 0 or evid_idx >= len(evidences):
-                            bot.editMessageText(message, f'❌ Índice de evidencia inválido')
+                            bot.editMessageText(message, f'❌ Índice inválido')
                             return
                         
                         evidence = evidences[evid_idx]
                         
-                        # Limpiar nombre para mostrar
-                        ev_name = evidence['evidence_name']
-                        clean_name = ev_name
-                        for user in evidence['group_users']:
-                            marker = f"{USER_EVIDENCE_MARKER}{user}"
-                            if marker in ev_name:
-                                clean_name = ev_name.replace(marker, "").strip()
-                                break
-                        
-                        short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
-                        
-                        bot.editMessageText(message, f'🗑️ Eliminando evidencia: {clean_name[:50]}...')
-                        
-                        # Eliminar
+                        # Eliminar directamente
                         success, ev_name, files_count = delete_evidence_from_cloud(
                             evidence['cloud_config'], 
                             evidence['evidence_data']
@@ -1590,55 +1557,42 @@ Aún no se ha realizado ninguna acción en el bot.
                             # Refrescar datos
                             admin_evidence_manager.refresh_data(force=True)
                             
-                            # Obtener datos actualizados
+                            # Verificar si la nube quedó vacía
                             cloud_names = list(admin_evidence_manager.clouds_dict.keys())
                             
                             if cloud_idx < len(cloud_names):
                                 current_evidences = admin_evidence_manager.clouds_dict.get(cloud_names[cloud_idx], [])
                                 
-                                if current_evidences:
-                                    # Si aún hay evidencias, mostrar esta nube actualizada
-                                    result_msg = f"""
-✅ ELIMINACIÓN EXITOSA
-━━━━━━━━━━━━━━━━━━━
-
-🗑️ Evidencia: {clean_name[:50]}
-{'...' if len(clean_name) > 50 else ''}
-📁 Archivos eliminados: {files_count}
-☁️ Nube: {short_name}
-
-🔄 Mostrando nube actualizada...
-━━━━━━━━━━━━━━━━━━━
-                                    """
-                                    bot.editMessageText(message, result_msg)
-                                    time.sleep(1)
-                                    show_updated_cloud(bot, message, cloud_idx)
-                                else:
-                                    # Si NO hay evidencias, mostrar todas las nubes
+                                if len(current_evidences) == 0:
+                                    # Nube vacía - redirigir a todas las nubes
+                                    short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
+                                    
                                     result_msg = f"""
 ✅ ELIMINACIÓN COMPLETA
 ━━━━━━━━━━━━━━━━━━━
 
-🗑️ Última evidencia eliminada de esta nube
 📁 Archivos borrados: {files_count}
+☁️ Nube: {short_name}
 
 🔄 Mostrando todas las nubes...
 ━━━━━━━━━━━━━━━━━━━
                                     """
                                     bot.editMessageText(message, result_msg)
                                     time.sleep(1)
-                                    show_updated_all_clouds(bot, message)  # MOSTRAR TODAS LAS NUBES
+                                    show_updated_all_clouds(bot, message)
+                                else:
+                                    # Aún hay evidencias - mostrar esta nube
+                                    show_updated_cloud(bot, message, cloud_idx)
                             else:
-                                # Si por alguna razón la nube ya no está en la lista
                                 show_updated_all_clouds(bot, message)
                         else:
-                            bot.editMessageText(message, f'❌ Error al eliminar: {clean_name}')
+                            bot.editMessageText(message, '❌ Error al eliminar')
                             
                     except Exception as e:
                         bot.editMessageText(message, f'❌ Error: {str(e)}')
                     return
                 
-                # /adm_wipe_X
+                # /adm_wipe_X - VERSIÓN SIMPLIFICADA
                 elif '/adm_wipe_' in msgText:
                     try:
                         cloud_idx = extract_one_param_simple(msgText, '/adm_wipe_')
@@ -1646,22 +1600,27 @@ Aún no se ha realizado ninguna acción en el bot.
                             bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_wipe_0')
                             return
                         
+                        # Verificar datos
+                        admin_evidence_manager.refresh_data()
+                        
                         if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
-                            bot.editMessageText(message, f'❌ Índice inválido. Máximo: {len(admin_evidence_manager.clouds_dict)-1}')
+                            bot.editMessageText(message, f'❌ Índice inválido')
                             return
                         
                         cloud_name = list(admin_evidence_manager.clouds_dict.keys())[cloud_idx]
                         evidences = admin_evidence_manager.clouds_dict[cloud_name]
                         
                         if not evidences:
-                            bot.editMessageText(message, f'📭 La nube {cloud_idx} ya está vacía')
+                            bot.editMessageText(message, f'📭 La nube ya está vacía')
+                            show_updated_all_clouds(bot, message)
                             return
                         
                         total_evidences = len(evidences)
                         total_files = sum(e['files_count'] for e in evidences)
                         short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
                         
-                        bot.editMessageText(message, f'💣 Limpiando nube {short_name}...')
+                        # ACCIÓN DIRECTA - SIN CONFIRMACIÓN
+                        bot.editMessageText(message, f'💣 Eliminando {total_evidences} evidencias de {short_name}...')
                         
                         cloud_config = None
                         for user_group, config in PRE_CONFIGURATED_USERS.items():
@@ -1670,18 +1629,19 @@ Aún no se ha realizado ninguna acción en el bot.
                                 break
                         
                         if cloud_config:
-                            success, deleted_count, total_files = delete_all_evidences_from_cloud(cloud_config)
+                            success, deleted_count, files_deleted = delete_all_evidences_from_cloud(cloud_config)
                             
                             if success:
                                 admin_evidence_manager.refresh_data(force=True)
                                 
+                                # Mensaje directo de éxito
                                 result_msg = f"""
-💥 LIMPIEZA COMPLETA EXITOSA
+✅ NUBE VACIADA
 ━━━━━━━━━━━━━━━━━━━
 
-✅ Nube: {short_name}
-✅ Evidencias eliminadas: {deleted_count}
-✅ Archivos borrados: {total_files}
+☁️ {short_name}
+📁 Evidencias eliminadas: {deleted_count}
+🗑️ Archivos borrados: {files_deleted}
 
 🔄 Mostrando todas las nubes...
 ━━━━━━━━━━━━━━━━━━━
@@ -1690,32 +1650,22 @@ Aún no se ha realizado ninguna acción en el bot.
                                 bot.editMessageText(message, result_msg)
                                 time.sleep(1)
                                 
+                                # Redirigir automáticamente a todas las nubes
                                 show_updated_all_clouds(bot, message)
                             else:
-                                bot.editMessageText(message, f'❌ Error al limpiar la nube {short_name}')
+                                bot.editMessageText(message, f'❌ Error al limpiar {short_name}')
                         else:
-                            bot.editMessageText(message, '❌ No se encontró configuración para esta nube')
+                            bot.editMessageText(message, '❌ No se encontró configuración')
                             
                     except Exception as e:
                         bot.editMessageText(message, f'❌ Error: {str(e)}')
                     return
                 
-                # /adm_nuke
+                # /adm_nuke - VERSIÓN SIMPLIFICADA
                 elif '/adm_nuke' in msgText:
                     try:
-                        total_clouds = len(admin_evidence_manager.clouds_dict)
-                        total_evidences = len(admin_evidence_manager.current_list)
-                        total_files = 0
-                        
-                        for cloud_name, evidences in admin_evidence_manager.clouds_dict.items():
-                            for ev in evidences:
-                                total_files += ev['files_count']
-                        
-                        if total_evidences == 0:
-                            bot.editMessageText(message, '📭 No hay evidencias para eliminar')
-                            return
-                        
-                        bot.editMessageText(message, '💣💣💣 ELIMINANDO TODO DE TODAS LAS NUBES...')
+                        # ACCIÓN DIRECTA - SIN CONFIRMACIÓN
+                        bot.editMessageText(message, '💣 Eliminando todo de todas las nubes...')
                         
                         results = []
                         deleted_total = 0
@@ -1736,24 +1686,22 @@ Aún no se ha realizado ninguna acción en el bot.
                                     files_total += total_files
                                     
                                     short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
-                                    results.append(f"✅ {short_name}: {deleted_count} evidencias, {total_files} archivos")
-                                else:
-                                    short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
-                                    results.append(f"❌ {short_name}: Error al eliminar")
+                                    results.append(f"✅ {short_name}: {deleted_count} evidencias")
                         
                         admin_evidence_manager.refresh_data(force=True)
                         
+                        # Mensaje directo de resultado
                         final_msg = f"""
-💥💥💥 ELIMINACIÓN MASIVA COMPLETADA 💥💥💥
+✅ ELIMINACIÓN COMPLETA
 ━━━━━━━━━━━━━━━━━━━
 
-📊 RESULTADOS FINALES:
-• Nubes procesadas: {len(results)}
+📊 RESULTADOS:
 • Evidencias eliminadas: {deleted_total}
 • Archivos borrados: {files_total}
+• Nubes procesadas: {len(results)}
 
 ━━━━━━━━━━━━━━━━━━━
-📋 DETALLE POR NUBE:
+📋 DETALLE:
 """
                         
                         for result in results:
@@ -1762,8 +1710,7 @@ Aún no se ha realizado ninguna acción en el bot.
                         final_msg += f"""
 
 ━━━━━━━━━━━━━━━━━━━
-✅ Todas las nubes han sido limpiadas.
-📭 No quedan evidencias en ninguna nube.
+📭 Todas las nubes están vacías
 ━━━━━━━━━━━━━━━━━━━
                         """
                         
