@@ -390,7 +390,7 @@ def processFile(update,bot,message,file,thread=None,jdb=None):
         bot.editMessageText(message,compresingInfo)
         zipname = str(file).split('.')[0] + createID()
         mult_file = zipfile.MultiFile(zipname,max_file_size)
-        zip = zipfile.ZipFile(mult_file,  mode='w', compression=zipfile.ZIP_DEFLATED)
+        zip = zipfile.ZipFile(mult_file,  mode='w', compression=zipfile.ZIP_DEFLated)
         zip.write(file)
         zip.close()
         mult_file.close()
@@ -656,48 +656,66 @@ def delete_all_evidences_from_cloud(cloud_config):
 # FUNCIONES MEJORADAS PARA EXTRACCIÓN DE PARÁMETROS
 # ==============================
 
-def safe_extract_two_params(msgText, prefix):
+def safe_extract_two_params_improved(msgText, prefix):
     """
-    Extrae dos parámetros de forma segura - VERSIÓN MEJORADA
+    Extrae dos parámetros de forma segura - VERSIÓN CORREGIDA
     """
     try:
         if prefix in msgText:
-            # Extraer la parte después del prefijo
-            parts_str = msgText[len(prefix):]
+            # Debug: imprimir lo que estamos procesando
+            print(f"DEBUG: Procesando '{msgText}' con prefijo '{prefix}'")
             
-            # Separar por guiones bajos y limpiar
-            parts = [p.strip() for p in parts_str.split('_') if p.strip()]
+            # Obtener solo la parte después del prefijo
+            param_part = msgText[len(prefix):]
+            print(f"DEBUG: Parte después del prefijo: '{param_part}'")
             
+            # Limpiar cualquier caracter no numérico excepto guiones bajos
+            cleaned = ''.join(c for c in param_part if c.isdigit() or c == '_')
+            print(f"DEBUG: Después de limpiar: '{cleaned}'")
+            
+            # Dividir por guiones bajos
+            parts = [p for p in cleaned.split('_') if p]
+            print(f"DEBUG: Partes después de dividir: {parts}")
+            
+            # Necesitamos al menos 2 partes
             if len(parts) >= 2:
                 param1 = parts[0]
                 param2 = parts[1]
                 
-                # Verificar que ambos sean números
-                if param1.isdigit() and param2.isdigit():
+                print(f"DEBUG: Parámetro 1: '{param1}', Parámetro 2: '{param2}'")
+                
+                # Convertir a enteros
+                try:
                     return [int(param1), int(param2)]
-                else:
-                    print(f"Parámetros no numéricos: '{param1}', '{param2}'")
+                except ValueError as ve:
+                    print(f"DEBUG: Error convirtiendo a enteros: {ve}")
+                    return None
     except Exception as e:
-        print(f"Error en safe_extract_two_params: {e}")
+        print(f"DEBUG: Error en safe_extract_two_params_improved: {e}")
+        import traceback
+        traceback.print_exc()
     return None
 
-def safe_extract_one_param(msgText, prefix):
+def safe_extract_one_param_improved(msgText, prefix):
     """
-    Extrae un parámetro de forma segura - VERSIÓN MEJORADA
+    Extrae un parámetro de forma segura - VERSIÓN CORREGIDA
     """
     try:
         if prefix in msgText:
-            # Extraer la parte después del prefijo
-            parts_str = msgText[len(prefix):]
+            # Obtener solo la parte después del prefijo
+            param_part = msgText[len(prefix):]
             
-            # Separar por guiones bajos y limpiar
-            parts = [p.strip() for p in parts_str.split('_') if p.strip()]
+            # Limpiar cualquier caracter no numérico excepto guiones bajos
+            cleaned = ''.join(c for c in param_part if c.isdigit() or c == '_')
             
-            for part in parts:
-                if part.isdigit():
-                    return int(part)
+            # Dividir por guiones bajos
+            parts = [p for p in cleaned.split('_') if p]
+            
+            # Tomar el primer parámetro
+            if parts:
+                return int(parts[0])
     except Exception as e:
-        print(f"Error en safe_extract_one_param: {e}")
+        print(f"Error en safe_extract_one_param_improved: {e}")
     return None
 
 def show_updated_cloud(bot, message, cloud_idx):
@@ -869,6 +887,9 @@ class AdminEvidenceManager:
     def get_evidence(self, cloud_idx, evid_idx):
         """Obtiene una evidencia específica"""
         try:
+            if cloud_idx is None or evid_idx is None:
+                return None
+                
             if cloud_idx < len(self.clouds_dict):
                 cloud_name = list(self.clouds_dict.keys())[cloud_idx]
                 if evid_idx < len(self.clouds_dict[cloud_name]):
@@ -1117,7 +1138,7 @@ Aún no se ha realizado ninguna acción en el bot.
             return
         
         # ============================================
-        # COMANDO /adm_allclouds - VER TODAS LAS NUBES (SIN REFRESH)
+        # COMANDO /adm_allclouds - VER TODAS LAS NUBES
         # ============================================
         elif username == ADMIN_USERNAME and '/adm_allclouds' in msgText:
             try:
@@ -1190,7 +1211,7 @@ Aún no se ha realizado ninguna acción en el bot.
         # ============================================
         elif username == ADMIN_USERNAME and '/adm_cloud_' in msgText:
             try:
-                cloud_idx = safe_extract_one_param(msgText, '/adm_cloud_')
+                cloud_idx = safe_extract_one_param_improved(msgText, '/adm_cloud_')
                 
                 if cloud_idx is None:
                     bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_cloud_0')
@@ -1274,11 +1295,11 @@ Aún no se ha realizado ninguna acción en el bot.
             return
         
         # ============================================
-        # COMANDO /adm_show_X_Y - VER DETALLES DE EVIDENCIA (SIN TAMAÑO)
+        # COMANDO /adm_show_X_Y - VER DETALLES DE EVIDENCIA
         # ============================================
         elif username == ADMIN_USERNAME and '/adm_show_' in msgText:
             try:
-                params = safe_extract_two_params(msgText, '/adm_show_')
+                params = safe_extract_two_params_improved(msgText, '/adm_show_')
                 
                 if params is None or len(params) != 2:
                     bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_show_0_1')
@@ -1330,7 +1351,7 @@ Aún no se ha realizado ninguna acción en el bot.
         # ============================================
         elif username == ADMIN_USERNAME and '/adm_fetch_' in msgText:
             try:
-                params = safe_extract_two_params(msgText, '/adm_fetch_')
+                params = safe_extract_two_params_improved(msgText, '/adm_fetch_')
                 
                 if params is None or len(params) != 2:
                     bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_fetch_0_1')
@@ -1382,11 +1403,13 @@ Aún no se ha realizado ninguna acción en el bot.
             return
         
         # ============================================
-        # COMANDO /adm_delete_X_Y - ELIMINAR UNA EVIDENCIA (SIN CONFIRMACIÓN)
+        # COMANDO /adm_delete_X_Y - ELIMINAR UNA EVIDENCIA
         # ============================================
         elif username == ADMIN_USERNAME and '/adm_delete_' in msgText:
             try:
-                params = safe_extract_two_params(msgText, '/adm_delete_')
+                params = safe_extract_two_params_improved(msgText, '/adm_delete_')
+                
+                print(f"DEBUG /adm_delete_: msgText='{msgText}', params={params}")
                 
                 if params is None or len(params) != 2:
                     bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_delete_0_1')
@@ -1442,14 +1465,17 @@ Aún no se ha realizado ninguna acción en el bot.
                     
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
+                print(f"DEBUG: Error en /adm_delete_: {str(e)}")
+                import traceback
+                traceback.print_exc()
             return
         
         # ============================================
-        # COMANDO /adm_wipe_X - LIMPIAR TODA UNA NUBE (SIN CONFIRMACIÓN)
+        # COMANDO /adm_wipe_X - LIMPIAR TODA UNA NUBE
         # ============================================
         elif username == ADMIN_USERNAME and '/adm_wipe_' in msgText:
             try:
-                cloud_idx = safe_extract_one_param(msgText, '/adm_wipe_')
+                cloud_idx = safe_extract_one_param_improved(msgText, '/adm_wipe_')
                 
                 if cloud_idx is None:
                     bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_wipe_0')
@@ -1510,7 +1536,7 @@ Aún no se ha realizado ninguna acción en el bot.
             return
         
         # ============================================
-        # COMANDO /adm_nuke - ELIMINAR TODO (SIN CONFIRMACIÓN)
+        # COMANDO /adm_nuke - ELIMINAR TODO
         # ============================================
         elif username == ADMIN_USERNAME and msgText == '/adm_nuke':
             try:
