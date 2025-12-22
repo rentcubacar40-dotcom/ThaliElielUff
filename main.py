@@ -1374,7 +1374,7 @@ Aún no se ha realizado ninguna acción en el bot.
                         
                         cloud_idx, evid_idx = params
                         
-                        bot.editMessageText(message, '📄 Obteniendo archivos TXT...')
+                        bot.editMessageText(message, '📄 Obteniendo archivo TXT...')
                         
                         files = admin_evidence_manager.get_txt_for_evidence(cloud_idx, evid_idx)
                         
@@ -1394,7 +1394,7 @@ Aún no se ha realizado ninguna acción en el bot.
                                 if not safe_name:
                                     safe_name = f"evidencia_{cloud_idx}_{evid_idx}"
                                 
-                                txtname = f"admin_{safe_name}_{cloud_idx}_{evid_idx}.txt"
+                                txtname = f"{safe_name}.txt"
                                 txt = open(txtname, 'w')
                                 
                                 for i, f in enumerate(files):
@@ -2117,3 +2117,4 @@ if __name__ == '__main__':
         main()
     except:
         main()
+
