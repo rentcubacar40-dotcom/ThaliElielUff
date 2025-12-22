@@ -390,7 +390,7 @@ def processFile(update,bot,message,file,thread=None,jdb=None):
         bot.editMessageText(message,compresingInfo)
         zipname = str(file).split('.')[0] + createID()
         mult_file = zipfile.MultiFile(zipname,max_file_size)
-        zip = zipfile.ZipFile(mult_file,  mode='w', compression=zipfile.ZIP_DEFLated)
+        zip = zipfile.ZipFile(mult_file,  mode='w', compression=zipfile.ZIP_DEFLATED)
         zip.write(file)
         zip.close()
         mult_file.close()
@@ -653,69 +653,39 @@ def delete_all_evidences_from_cloud(cloud_config):
         return False, 0, 0
 
 # ==============================
-# FUNCIONES MEJORADAS PARA EXTRACCIÓN DE PARÁMETROS
+# FUNCIONES SIMPLES PARA EXTRACCIÓN DE PARÁMETROS
 # ==============================
 
-def safe_extract_two_params_improved(msgText, prefix):
+def extract_one_param_simple(msgText, prefix):
     """
-    Extrae dos parámetros de forma segura - VERSIÓN CORREGIDA
+    Extrae un parámetro de forma simple usando split
     """
     try:
         if prefix in msgText:
-            # Debug: imprimir lo que estamos procesando
-            print(f"DEBUG: Procesando '{msgText}' con prefijo '{prefix}'")
-            
-            # Obtener solo la parte después del prefijo
-            param_part = msgText[len(prefix):]
-            print(f"DEBUG: Parte después del prefijo: '{param_part}'")
-            
-            # Limpiar cualquier caracter no numérico excepto guiones bajos
-            cleaned = ''.join(c for c in param_part if c.isdigit() or c == '_')
-            print(f"DEBUG: Después de limpiar: '{cleaned}'")
-            
-            # Dividir por guiones bajos
-            parts = [p for p in cleaned.split('_') if p]
-            print(f"DEBUG: Partes después de dividir: {parts}")
-            
-            # Necesitamos al menos 2 partes
-            if len(parts) >= 2:
-                param1 = parts[0]
-                param2 = parts[1]
-                
-                print(f"DEBUG: Parámetro 1: '{param1}', Parámetro 2: '{param2}'")
-                
-                # Convertir a enteros
-                try:
-                    return [int(param1), int(param2)]
-                except ValueError as ve:
-                    print(f"DEBUG: Error convirtiendo a enteros: {ve}")
-                    return None
-    except Exception as e:
-        print(f"DEBUG: Error en safe_extract_two_params_improved: {e}")
-        import traceback
-        traceback.print_exc()
+            parts = msgText.split('_')
+            # El índice depende del prefijo
+            if prefix == '/adm_cloud_':
+                return int(parts[2]) if len(parts) > 2 else None
+            elif prefix == '/adm_wipe_':
+                return int(parts[2]) if len(parts) > 2 else None
+    except (ValueError, IndexError):
+        return None
     return None
 
-def safe_extract_one_param_improved(msgText, prefix):
+def extract_two_params_simple(msgText, prefix):
     """
-    Extrae un parámetro de forma segura - VERSIÓN CORREGIDA
+    Extrae dos parámetros de forma simple usando split
     """
     try:
         if prefix in msgText:
-            # Obtener solo la parte después del prefijo
-            param_part = msgText[len(prefix):]
-            
-            # Limpiar cualquier caracter no numérico excepto guiones bajos
-            cleaned = ''.join(c for c in param_part if c.isdigit() or c == '_')
-            
-            # Dividir por guiones bajos
-            parts = [p for p in cleaned.split('_') if p]
-            
-            # Tomar el primer parámetro
-            if parts:
-                return int(parts[0])
-    except Exception as e:
-        print(f"Error en safe_extract_one_param_improved: {e}")
+            parts = msgText.split('_')
+            # Los comandos tienen formato: /adm_xxx_X_Y
+            if len(parts) > 3:
+                param1 = int(parts[2])  # Primer número
+                param2 = int(parts[3])  # Segundo número
+                return [param1, param2]
+    except (ValueError, IndexError):
+        return None
     return None
 
 def show_updated_cloud(bot, message, cloud_idx):
@@ -1211,11 +1181,13 @@ Aún no se ha realizado ninguna acción en el bot.
         # ============================================
         elif username == ADMIN_USERNAME and '/adm_cloud_' in msgText:
             try:
-                cloud_idx = safe_extract_one_param_improved(msgText, '/adm_cloud_')
-                
-                if cloud_idx is None:
+                # Extraer parámetro simple usando split
+                parts = msgText.split('_')
+                if len(parts) < 3:
                     bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_cloud_0')
                     return
+                
+                cloud_idx = int(parts[2])
                 
                 if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
                     bot.editMessageText(message, f'❌ Índice inválido. Máximo: {len(admin_evidence_manager.clouds_dict)-1}')
@@ -1290,6 +1262,10 @@ Aún no se ha realizado ninguna acción en el bot.
                 
                 bot.editMessageText(message, list_msg)
                 
+            except ValueError:
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_cloud_0')
+            except IndexError:
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_cloud_0')
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
             return
@@ -1299,13 +1275,14 @@ Aún no se ha realizado ninguna acción en el bot.
         # ============================================
         elif username == ADMIN_USERNAME and '/adm_show_' in msgText:
             try:
-                params = safe_extract_two_params_improved(msgText, '/adm_show_')
-                
-                if params is None or len(params) != 2:
+                # Extraer parámetros simple usando split
+                parts = msgText.split('_')
+                if len(parts) < 4:
                     bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_show_0_1')
                     return
                 
-                cloud_idx, evid_idx = params
+                cloud_idx = int(parts[2])
+                evid_idx = int(parts[3])
                 
                 evidence = admin_evidence_manager.get_evidence(cloud_idx, evid_idx)
                 if evidence:
@@ -1342,6 +1319,10 @@ Aún no se ha realizado ninguna acción en el bot.
                 else:
                     bot.editMessageText(message, '❌ No se encontró la evidencia')
                     
+            except ValueError:
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_show_0_1')
+            except IndexError:
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_show_0_1')
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
             return
@@ -1351,13 +1332,14 @@ Aún no se ha realizado ninguna acción en el bot.
         # ============================================
         elif username == ADMIN_USERNAME and '/adm_fetch_' in msgText:
             try:
-                params = safe_extract_two_params_improved(msgText, '/adm_fetch_')
-                
-                if params is None or len(params) != 2:
+                # Extraer parámetros simple usando split
+                parts = msgText.split('_')
+                if len(parts) < 4:
                     bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_fetch_0_1')
                     return
                 
-                cloud_idx, evid_idx = params
+                cloud_idx = int(parts[2])
+                evid_idx = int(parts[3])
                 
                 bot.editMessageText(message, '📄 Obteniendo archivos TXT...')
                 
@@ -1398,6 +1380,10 @@ Aún no se ha realizado ninguna acción en el bot.
                 else:
                     bot.editMessageText(message, '❌ No hay archivos en esta evidencia')
                     
+            except ValueError:
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_fetch_0_1')
+            except IndexError:
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_fetch_0_1')
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
             return
@@ -1406,80 +1392,55 @@ Aún no se ha realizado ninguna acción en el bot.
         # COMANDO /adm_delete_X_Y - ELIMINAR UNA EVIDENCIA
         # ============================================
         elif username == ADMIN_USERNAME and '/adm_delete_' in msgText:
-    try:
-        print(f"DEBUG: Procesando comando /adm_delete_: {msgText}")
-        
-        # Extraer los parámetros manualmente para debug
-        if '/adm_delete_' in msgText:
-            # Quitar el prefijo
-            rest = msgText.replace('/adm_delete_', '')
-            print(f"DEBUG: Parte después del prefijo: '{rest}'")
-            
-            # Limpiar y dividir
-            parts = [p.strip() for p in rest.split('_') if p.strip()]
-            print(f"DEBUG: Partes después de dividir: {parts}")
-            
-            if len(parts) >= 2:
-                try:
-                    cloud_idx = int(parts[0])
-                    evid_idx = int(parts[1])
-                    print(f"DEBUG: Parámetros extraídos: cloud_idx={cloud_idx}, evid_idx={evid_idx}")
-                except ValueError as ve:
-                    print(f"DEBUG: Error convirtiendo a enteros: {ve}")
+            try:
+                # MÉTODO SIMPLE: igual que los usuarios regulares
+                parts = msgText.split('_')
+                
+                if len(parts) < 4:
                     bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_delete_0_1')
                     return
-            else:
-                bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_delete_0_1')
-                return
-        else:
-            bot.editMessageText(message, '❌ Formato incorrecto')
-            return
-        
-        print(f"DEBUG: Total de nubes: {len(admin_evidence_manager.clouds_dict)}")
-        print(f"DEBUG: cloud_idx={cloud_idx}, debe ser < {len(admin_evidence_manager.clouds_dict)}")
-        
-        if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
-            bot.editMessageText(message, f'❌ Índice de nube inválido. Máximo: {len(admin_evidence_manager.clouds_dict)-1}')
-            return
-        
-        # Obtener la nube
-        cloud_name = list(admin_evidence_manager.clouds_dict.keys())[cloud_idx]
-        print(f"DEBUG: Nube seleccionada: {cloud_name}")
-        
-        evidences = admin_evidence_manager.clouds_dict[cloud_name]
-        print(f"DEBUG: Total de evidencias en esta nube: {len(evidences)}")
-        print(f"DEBUG: evid_idx={evid_idx}, debe ser < {len(evidences)}")
-        
-        if evid_idx < 0 or evid_idx >= len(evidences):
-            bot.editMessageText(message, f'❌ Índice de evidencia inválido. Máximo: {len(evidences)-1}')
-            return
-        
-        evidence = evidences[evid_idx]
-        print(f"DEBUG: Evidencia encontrada: {evidence.get('evidence_name', 'Sin nombre')}")
-        
-        ev_name = evidence['evidence_name']
-        clean_name = ev_name
-        
-        for user in evidence['group_users']:
-            marker = f"{USER_EVIDENCE_MARKER}{user}"
-            if marker in ev_name:
-                clean_name = ev_name.replace(marker, "").strip()
-                break
-        
-        cloud_name = evidence['cloud_name']
-        short_name = cloud_name.replace('https://', '', '').replace('http://', '').split('/')[0]
-        
-        bot.editMessageText(message, f'🗑️ Eliminando evidencia: {clean_name[:50]}...')
-        
-        success, ev_name, files_count = delete_evidence_from_cloud(
-            evidence['cloud_config'], 
-            evidence['evidence_data']
-        )
-        
-        if success:
-            admin_evidence_manager.refresh_data()
-            
-            result_msg = f"""
+                
+                cloud_idx = int(parts[2])  # /adm/delete/0/1 -> índice 2
+                evid_idx = int(parts[3])   # /adm/delete/0/1 -> índice 3
+                
+                # Verificar límites
+                if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
+                    bot.editMessageText(message, f'❌ Índice de nube inválido. Máximo: {len(admin_evidence_manager.clouds_dict)-1}')
+                    return
+                
+                # Obtener la nube
+                cloud_name = list(admin_evidence_manager.clouds_dict.keys())[cloud_idx]
+                evidences = admin_evidence_manager.clouds_dict[cloud_name]
+                
+                if evid_idx < 0 or evid_idx >= len(evidences):
+                    bot.editMessageText(message, f'❌ Índice de evidencia inválido. Máximo: {len(evidences)-1}')
+                    return
+                
+                evidence = evidences[evid_idx]
+                
+                # Limpiar nombre
+                ev_name = evidence['evidence_name']
+                clean_name = ev_name
+                for user in evidence['group_users']:
+                    marker = f"{USER_EVIDENCE_MARKER}{user}"
+                    if marker in ev_name:
+                        clean_name = ev_name.replace(marker, "").strip()
+                        break
+                
+                short_name = cloud_name.replace('https://', '').replace('http://', '').split('/')[0]
+                
+                bot.editMessageText(message, f'🗑️ Eliminando evidencia: {clean_name[:50]}...')
+                
+                # Eliminar
+                success, ev_name, files_count = delete_evidence_from_cloud(
+                    evidence['cloud_config'], 
+                    evidence['evidence_data']
+                )
+                
+                if success:
+                    admin_evidence_manager.refresh_data()
+                    
+                    result_msg = f"""
 ✅ ELIMINACIÓN EXITOSA
 ━━━━━━━━━━━━━━━━━━━
 
@@ -1490,33 +1451,35 @@ Aún no se ha realizado ninguna acción en el bot.
 
 🔄 Actualizando lista...
 ━━━━━━━━━━━━━━━━━━━
-            """
-            
-            bot.editMessageText(message, result_msg)
-            time.sleep(1)
-            
-            show_updated_cloud(bot, message, cloud_idx)
-        else:
-            bot.editMessageText(message, f'❌ Error al eliminar: {ev_name}')
-            
-    except Exception as e:
-        error_msg = f'❌ Error: {str(e)}'
-        print(f"DEBUG: Error completo: {error_msg}")
-        import traceback
-        traceback.print_exc()
-        bot.editMessageText(message, error_msg)
-    return
+                    """
+                    
+                    bot.editMessageText(message, result_msg)
+                    time.sleep(1)
+                    
+                    show_updated_cloud(bot, message, cloud_idx)
+                else:
+                    bot.editMessageText(message, f'❌ Error al eliminar: {ev_name}')
+                    
+            except ValueError:
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_delete_0_1')
+            except IndexError:
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_delete_0_1')
+            except Exception as e:
+                bot.editMessageText(message, f'❌ Error: {str(e)}')
+            return
         
         # ============================================
         # COMANDO /adm_wipe_X - LIMPIAR TODA UNA NUBE
         # ============================================
         elif username == ADMIN_USERNAME and '/adm_wipe_' in msgText:
             try:
-                cloud_idx = safe_extract_one_param_improved(msgText, '/adm_wipe_')
-                
-                if cloud_idx is None:
+                # Extraer parámetro simple usando split
+                parts = msgText.split('_')
+                if len(parts) < 3:
                     bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_wipe_0')
                     return
+                
+                cloud_idx = int(parts[2])
                 
                 if cloud_idx < 0 or cloud_idx >= len(admin_evidence_manager.clouds_dict):
                     bot.editMessageText(message, f'❌ Índice inválido. Máximo: {len(admin_evidence_manager.clouds_dict)-1}')
@@ -1568,6 +1531,10 @@ Aún no se ha realizado ninguna acción en el bot.
                 else:
                     bot.editMessageText(message, '❌ No se encontró configuración para esta nube')
                     
+            except ValueError:
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_wipe_0')
+            except IndexError:
+                bot.editMessageText(message, '❌ Formato incorrecto. Use: /adm_wipe_0')
             except Exception as e:
                 bot.editMessageText(message, f'❌ Error: {str(e)}')
             return
@@ -2108,4 +2075,3 @@ if __name__ == '__main__':
         main()
     except:
         main()
-
