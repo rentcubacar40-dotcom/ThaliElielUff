@@ -895,6 +895,26 @@ def show_updated_all_clouds(bot, message):
             for ev in evidences:
                 total_files += ev['files_count']
         
+        if total_evidences == 0:
+            # Si no hay evidencias en ninguna nube, mostrar mensaje simple
+            empty_msg = f"""
+👑 TODAS LAS NUBES ACTUALIZADAS
+━━━━━━━━━━━━━━━━━━━
+
+📊 RESUMEN GENERAL:
+• Nubes: {total_clouds}
+• Evidencias totales: 0
+• Archivos totales: 0
+
+━━━━━━━━━━━━━━━━━━━
+✅ Todas las nubes están vacías
+📭 No hay evidencias para eliminar
+━━━━━━━━━━━━━━━━━━━
+            """
+            bot.editMessageText(message, empty_msg)
+            return
+        
+        # Si hay evidencias, mostrar la lista completa
         menu_msg = f"""
 👑 TODAS LAS NUBES ACTUALIZADAS
 ━━━━━━━━━━━━━━━━━━━
@@ -926,14 +946,6 @@ def show_updated_all_clouds(bot, message):
 ━━━━━━━━━━━━━━━━━━━
 🔧 OPCIONES MASIVAS:
 /adm_nuke - ⚠️ Eliminar TODO (peligro)
-━━━━━━━━━━━━━━━━━━━
-        """
-        else:
-            menu_msg += f"""
-
-━━━━━━━━━━━━━━━━━━━
-✅ Todas las nubes están vacías
-📭 No hay evidencias para eliminar
 ━━━━━━━━━━━━━━━━━━━
         """
         
@@ -1044,7 +1056,6 @@ def onmessage(update,bot:ObigramClient):
 ☁️ Nube: Moodle
 📁 Evidence: Activado
 🔗 Host: {user_info["moodle_host"]}
-👤 Cuenta: {user_info["moodle_user"]}
 
 🔧 TUS COMANDOS:
 /start - Ver esta información
@@ -1142,7 +1153,22 @@ Aún no se ha realizado ninguna acción en el bot.
                         total_evidences = admin_evidence_manager.refresh_data()
                         
                         if total_evidences == 0:
-                            bot.editMessageText(message, '📭 No se encontraron evidencias en ninguna nube')
+                            # Mensaje cuando no hay evidencias
+                            empty_msg = f"""
+👑 TODAS LAS NUBES
+━━━━━━━━━━━━━━━━━━━
+
+📊 RESUMEN GENERAL:
+• Nubes configuradas: {len(PRE_CONFIGURATED_USERS)}
+• Evidencias totales: 0
+• Archivos totales: 0
+
+━━━━━━━━━━━━━━━━━━━
+✅ Todas las nubes están vacías
+📭 No hay evidencias para eliminar
+━━━━━━━━━━━━━━━━━━━
+                            """
+                            bot.editMessageText(message, empty_msg)
                             return
                         
                         total_clouds = len(admin_evidence_manager.clouds_dict)
@@ -1424,7 +1450,7 @@ Aún no se ha realizado ninguna acción en el bot.
                         
                         evidence = evidences[evid_idx]
                         
-                        # Limpiar nombre
+                        # Limpiar nombre para mostrar
                         ev_name = evidence['evidence_name']
                         clean_name = ev_name
                         for user in evidence['group_users']:
@@ -1450,8 +1476,8 @@ Aún no se ha realizado ninguna acción en el bot.
 ✅ ELIMINACIÓN EXITOSA
 ━━━━━━━━━━━━━━━━━━━
 
-🗑️ Evidencia: {ev_name[:50]}
-{'...' if len(ev_name) > 50 else ''}
+🗑️ Evidencia: {clean_name[:50]}
+{'...' if len(clean_name) > 50 else ''}
 📁 Archivos eliminados: {files_count}
 ☁️ Nube: {short_name}
 
@@ -1491,7 +1517,7 @@ Aún no se ha realizado ninguna acción en el bot.
                                 # Si por alguna razón la nube ya no está en la lista
                                 show_updated_all_clouds(bot, message)
                         else:
-                            bot.editMessageText(message, f'❌ Error al eliminar: {ev_name}')
+                            bot.editMessageText(message, f'❌ Error al eliminar: {clean_name}')
                             
                     except Exception as e:
                         bot.editMessageText(message, f'❌ Error: {str(e)}')
