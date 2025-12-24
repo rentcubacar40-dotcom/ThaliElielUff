@@ -1,4 +1,4 @@
-Quiero sacar el método de thumbnail para usarlo en este código pero lo que cambia es que la foto se obtiene desde una url, así q usemos una variable llamada url, es para los txt que envía el código from pyobigram.utils import sizeof_fmt,get_file_size,createID,nice_time
+from pyobigram.utils import sizeof_fmt,get_file_size,createID,nice_time
 from pyobigram.client import ObigramClient,inlineQueryResultArticle
 from MoodleClient import MoodleClient
 
