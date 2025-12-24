@@ -40,7 +40,7 @@ USER_EVIDENCE_MARKER = " "  # Espacio como separador
 
 # PRE-CONFIGURACIÓN DE USUARIOS
 PRE_CONFIGURATED_USERS = {
-    "Thali355,Eliel_21,Kev_inn10,diana060698": {
+    "Thali355,Eliel_21,Kev_inn10": {
         "cloudtype": "moodle",
         "moodle_host": "https://moodle.instec.cu/",
         "moodle_repo_id": 3,
@@ -51,7 +51,7 @@ PRE_CONFIGURATED_USERS = {
         "proxy": "",
         "tokenize": 0
     },
-    "maykolguille,yordante,veno_mancer,Miguwq": {
+    "maykolguille,yordante,Miguwq,OrCesarOr": {
         "cloudtype": "moodle",
         "moodle_host": "https://cursos.uo.edu.cu/",
         "moodle_repo_id": 4,
@@ -2232,3 +2232,4 @@ if __name__ == '__main__':
         main()
     except:
         main()
+
