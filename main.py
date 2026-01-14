@@ -53,10 +53,10 @@ PRE_CONFIGURATED_USERS = {
     },
     "yordante,OrCesarOr,alejandrorosell,imrushh,maykolguille,Satoru_2115,RancesCuit,Carlosx200": {
         "cloudtype": "moodle",
-        "moodle_host": "https://cursos.uo.edu.cu/",
+        "moodle_host": "https://eva.uo.edu.cu/",
         "moodle_repo_id": 4,
         "moodle_user": "desiderio.vazquez",
-        "moodle_password": "ElielThali1521..",
+        "moodle_password": "ThaliEliel1521.",
         "zips": 99,
         "uploadtype": "evidence",
         "proxy": "",
@@ -2232,6 +2232,7 @@ if __name__ == '__main__':
         main()
     except:
         main()
+
 
 
 
