@@ -6,34 +6,34 @@ from JDatabase import JsonDatabase
 import zipfile
 import os
 import infos
-import xdlink
-import mediafire
-import datetime
-import time
-import youtube
-import NexCloudClient
+importar xdlink
+importar mediafire
+importar fecha y hora
+tiempo de importación
+importar youtube
+importar NexCloudClient
 
-from pydownloader.downloader import Downloader
-from ProxyCloud import ProxyCloud
-import ProxyCloud
-import socket
-import S5Crypto
-import traceback
-import random
-import pytz
-import threading
+desde pydownloader.downloader importar Downloader
+desde ProxyCloud importar ProxyCloud
+importar ProxyCloud
+toma de importación
+importar S5Crypto
+seguimiento de importación
+importar aleatorio
+importar pytz
+subprocesos de importación
 
 # CONFIGURACIÓN FIJA EN EL CÓDIGO
 BOT_TOKEN = "8410047906:AAGntGHmkIuIvovBMQfy-gko2JTw3TNJsak"
 
 # CONFIGURACIÓN ADMINISTRADOR
-ADMIN_USERNAME = "Eliel_21"
+NOMBRE_USUARIO_ADMINISTRATIVO = "Eliel_21"
 
 # ZONA HORARIA DE CUBA
-try:
-    CUBA_TZ = pytz.timezone('America/Havana')
-except:
-    CUBA_TZ = None
+intentar :
+    CUBA_TZ = pytz. timezone ( 'América/La Habana' )
+excepto :
+    CUBA_TZ = Ninguno
 
 # SEPARADOR PARA EVIDENCIAS POR USUARIO
 USER_EVIDENCE_MARKER = " "  # Espacio como separador
@@ -53,7 +53,7 @@ PRE_CONFIGURATED_USERS = {
     },
     "yordante,OrCesarOr,alejandrorosell,imrushh,maykolguille,Satoru_2115,RancesCuit,Carlosx200": {
         "cloudtype": "moodle",
-        "moodle_host": "https://eva.uo.edu.cu/",
+        "moodle_host": "https://cursos.uo.edu.cu/",
         "moodle_repo_id": 4,
         "moodle_user": "desiderio.vazquez",
         "moodle_password": "ThaliEliel1521.",
@@ -2232,6 +2232,7 @@ if __name__ == '__main__':
         main()
     except:
         main()
+
 
 
 
